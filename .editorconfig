@@ -1,0 +1,36 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{xml,xaml,csproj,props,targets,slnx,json,yml,yaml}]
+indent_size = 2
+
+[*.{md,html,css,js}]
+indent_size = 2
+end_of_line = lf
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:suggestion
+csharp_style_var_for_built_in_types = true:silent
+dotnet_sort_system_directives_first = true
+# P/Invoke structs mirror Win32 naming
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1716.severity = none
+dotnet_diagnostic.CA1805.severity = none
+dotnet_diagnostic.CA1812.severity = none
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1031.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1303.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1819.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA5392.severity = none
+dotnet_diagnostic.SYSLIB1054.severity = none

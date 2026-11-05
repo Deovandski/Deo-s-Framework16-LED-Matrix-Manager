@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LedMatrix.Core/LedMatrix.Core.csproj" />
+    <Project Path="src/LedMatrix.App/LedMatrix.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LedMatrix.Core.Tests/LedMatrix.Core.Tests.csproj" />
+  </Folder>
+</Solution>

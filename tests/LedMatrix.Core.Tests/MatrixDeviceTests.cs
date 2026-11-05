@@ -1,0 +1,130 @@
+using LedMatrix.Core;
+using Cmd = LedMatrix.Core.Protocol.CommandId;
+
+namespace LedMatrix.Core.Tests;
+
+public sealed class MatrixDeviceTests : IDisposable
+{
+    private readonly FakeTime _time = new();
+    private readonly FakeTransport _port = new();
+
+    private MatrixDevice NewDevice() => new("SN123", _port, _time);
+
+    public void Dispose() => _port.Dispose();
+
+    [Fact]
+    public void First_awake_pass_reads_version_wakes_and_sends_content()
+    {
+        _port.EnqueueResponse(0x00, 0x20, 0x00);
+        var dev = NewDevice();
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+
+        dev.RunOnce();
+
+        Assert.Equal(DeviceStatus.Connected, dev.Status);
+        Assert.Equal(new FirmwareVersion(0, 2, 0, false), dev.Version);
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.Version, Cmd.Sleep, Cmd.Brightness, Cmd.DrawBw }, _port.Ids());
+        Assert.Equal(new byte[] { 0x32, 0xAC, 0x03, 0x00 }, _port.Writes[1]);
+    }
+
+    [Fact]
+    public void While_off_only_sleep_is_sent_and_content_is_restored_on_wake()
+    {
+        var dev = NewDevice();
+        dev.SetAwake(false);
+        dev.RunOnce();
+
+        // Opening while off must not send anything that would wake the LEDs (no version query).
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.Sleep }, _port.Ids());
+        Assert.Equal(1, _port.Writes[0][3]);
+        Assert.Equal(DeviceStatus.Asleep, dev.Status);
+
+        _port.Writes.Clear();
+        dev.SetFrame(Patterns.Find("Gradient")!.Create());
+        dev.SetBrightness(42);
+        _time.Advance(TimeSpan.FromMinutes(5));
+        dev.RunOnce();
+        Assert.Empty(_port.Writes); // silence, even past the keep-alive interval
+
+        dev.SetAwake(true);
+        dev.RunOnce();
+        var ids = _port.Ids();
+        Assert.Equal(Cmd.Version, ids[0]);
+        Assert.Equal(Cmd.Sleep, ids[1]);
+        Assert.Equal(0, _port.Writes[1][3]);
+        Assert.Equal(Cmd.Brightness, ids[2]);
+        Assert.Equal(42, _port.Writes[2][3]);
+        Assert.Equal(9, ids.Count(i => i == Cmd.StageColumn));
+        Assert.Equal(Cmd.FlushColumns, ids[^1]);
+    }
+
+    [Fact]
+    public void Keep_alive_is_sent_before_the_firmware_idle_timeout()
+    {
+        var dev = NewDevice();
+        dev.RunOnce();
+        _port.Writes.Clear();
+
+        _time.Advance(TimeSpan.FromSeconds(10));
+        dev.RunOnce();
+        Assert.Empty(_port.Writes);
+
+        _time.Advance(MatrixDevice.KeepAliveInterval);
+        dev.RunOnce();
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.Brightness }, _port.Ids());
+        Assert.True(MatrixDevice.KeepAliveInterval < Protocol.FirmwareIdleTimeout);
+    }
+
+    [Fact]
+    public void Only_the_latest_frame_is_sent()
+    {
+        var dev = NewDevice();
+        dev.RunOnce();
+        _port.Writes.Clear();
+
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+        dev.SetFrame(Patterns.Find("Blank")!.Create());
+        dev.RunOnce();
+
+        Assert.Single(_port.Writes);
+        Assert.All(_port.Writes[0][3..], b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void Port_in_use_reports_busy_and_retries_with_backoff()
+    {
+        _port.OpenException = new UnauthorizedAccessException();
+        var dev = NewDevice();
+
+        dev.RunOnce();
+        Assert.Equal(DeviceStatus.PortBusy, dev.Status);
+        dev.RunOnce(); // within back-off window: no new attempt
+        Assert.Equal(1, _port.OpenCount);
+
+        _port.OpenException = null;
+        _time.Advance(TimeSpan.FromSeconds(1));
+        dev.RunOnce();
+        Assert.Equal(DeviceStatus.Connected, dev.Status);
+    }
+
+    [Fact]
+    public void Write_failure_disconnects_and_resyncs_after_reconnect()
+    {
+        var dev = NewDevice();
+        dev.RunOnce();
+
+        _port.WriteException = new IOException("unplugged");
+        dev.SetBrightness(10);
+        dev.RunOnce();
+        Assert.Equal(DeviceStatus.Disconnected, dev.Status);
+        Assert.False(_port.IsOpen);
+
+        _port.WriteException = null;
+        _port.Writes.Clear();
+        _time.Advance(TimeSpan.FromSeconds(1));
+        dev.RunOnce();
+        Assert.Equal(DeviceStatus.Connected, dev.Status);
+        Assert.Contains(Cmd.Brightness, _port.Ids());
+        Assert.Contains(Cmd.DrawBw, _port.Ids());
+    }
+}

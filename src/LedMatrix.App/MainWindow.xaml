@@ -1,0 +1,142 @@
+<Window x:Class="LedMatrix.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:LedMatrix.App.Controls"
+        Title="Deo's LED Matrix Manager"
+        Icon="/Assets/app.ico"
+        Width="980" Height="840" MinWidth="780" MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="340" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- ===== Sidebar (mirrors the controls panel of ledmatrix.frame.work) ===== -->
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="24,20,16,24">
+        <TextBlock Text="LED Matrix Manager" FontSize="22" FontWeight="SemiBold" />
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <Ellipse x:Name="StateDot" Width="10" Height="10" VerticalAlignment="Center" Fill="Gray" />
+          <TextBlock x:Name="StateText" Margin="8,0,0,0" VerticalAlignment="Center"
+                     AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
+
+        <!-- Devices -->
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Devices" />
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <DockPanel>
+              <Button x:Name="LeftIdentifyButton" DockPanel.Dock="Right" Content="Identify" Tag="Left"
+                      Click="Identify_Click" ToolTip="Blink this module so you can see which one it is" />
+              <TextBox x:Name="LeftNameBox" Margin="0,0,8,0" Tag="Left" VerticalContentAlignment="Center"
+                       LostKeyboardFocus="NameBox_LostFocus" KeyDown="NameBox_KeyDown"
+                       AutomationProperties.Name="Left module name" ToolTip="Name for the left module" />
+            </DockPanel>
+            <TextBlock x:Name="LeftStatusText" Style="{StaticResource Caption}" Margin="0,6,0,0" />
+          </StackPanel>
+        </Border>
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <DockPanel>
+              <Button x:Name="RightIdentifyButton" DockPanel.Dock="Right" Content="Identify" Tag="Right"
+                      Click="Identify_Click" ToolTip="Blink this module so you can see which one it is" />
+              <TextBox x:Name="RightNameBox" Margin="0,0,8,0" Tag="Right" VerticalContentAlignment="Center"
+                       LostKeyboardFocus="NameBox_LostFocus" KeyDown="NameBox_KeyDown"
+                       AutomationProperties.Name="Right module name" ToolTip="Name for the right module" />
+            </DockPanel>
+            <TextBlock x:Name="RightStatusText" Style="{StaticResource Caption}" Margin="0,6,0,0" />
+          </StackPanel>
+        </Border>
+        <WrapPanel>
+          <Button x:Name="SwapButton" Content="Swap left / right" Click="Swap_Click" Margin="0,0,8,0"
+                  ToolTip="Use if the drawings show up on the wrong module" />
+          <Button Content="Rescan" Click="Rescan_Click" ToolTip="Look for modules again" />
+        </WrapPanel>
+
+        <!-- LEDs -->
+        <TextBlock Style="{StaticResource SectionHeader}" Text="LEDs" />
+        <StackPanel Orientation="Horizontal">
+          <RadioButton x:Name="ModeAuto" Content="Automatic" GroupName="LedMode" Checked="Mode_Checked" Margin="0,0,16,0"
+                       ToolTip="On while the laptop screen is in use, off otherwise" />
+          <RadioButton x:Name="ModeOn" Content="On" GroupName="LedMode" Checked="Mode_Checked" Margin="0,0,16,0" />
+          <RadioButton x:Name="ModeOff" Content="Off" GroupName="LedMode" Checked="Mode_Checked" />
+        </StackPanel>
+        <TextBlock Text="Brightness" Margin="0,14,0,4" />
+        <DockPanel>
+          <TextBlock x:Name="BrightnessValue" DockPanel.Dock="Right" Width="44" TextAlignment="Right" VerticalAlignment="Center" />
+          <Slider x:Name="BrightnessSlider" Minimum="0" Maximum="255" SmallChange="1" LargeChange="16"
+                  IsMoveToPointEnabled="True" ValueChanged="Brightness_Changed"
+                  AutomationProperties.Name="LED brightness" />
+        </DockPanel>
+
+        <!-- Drawing -->
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Drawing" />
+        <TextBlock Text="Brush brightness" Margin="0,0,0,4" />
+        <DockPanel>
+          <TextBlock x:Name="BrushValue" DockPanel.Dock="Right" Width="44" TextAlignment="Right" VerticalAlignment="Center" />
+          <Slider x:Name="BrushSlider" Minimum="1" Maximum="255" SmallChange="1" LargeChange="16"
+                  IsMoveToPointEnabled="True" ValueChanged="Brush_Changed"
+                  AutomationProperties.Name="Brush brightness" />
+        </DockPanel>
+        <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
+                   Text="Left-click to draw. Right-click (or Ctrl+click) to erase. Click and drag to paint. With the keyboard: arrows to move, Space to toggle." />
+
+        <!-- Automatic on/off -->
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Automatic on/off" />
+        <CheckBox x:Name="AutoOffCheck" Content="Turn LEDs off when the laptop screen is off" Click="AutoOff_Click" />
+        <StackPanel x:Name="AutoOffDetails" Margin="28,6,0,0">
+          <CheckBox x:Name="LidCheck" Content="Lid is closed" Click="AutoOff_Click" Margin="0,2" />
+          <CheckBox x:Name="PanelCheck" Content="Laptop screen not used (docked, second screen only)" Click="AutoOff_Click" Margin="0,2" />
+          <CheckBox x:Name="DisplayOffCheck" Content="Windows turned the screen off" Click="AutoOff_Click" Margin="0,2" />
+          <CheckBox x:Name="LockCheck" Content="PC is locked" Click="AutoOff_Click" Margin="0,2" />
+        </StackPanel>
+        <TextBlock x:Name="ScreenStateText" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+        <CheckBox x:Name="StartupCheck" Content="Start with Windows" Margin="0,16,0,0" Click="Startup_Click" />
+
+        <!-- Footer -->
+        <TextBlock Style="{StaticResource Caption}" Margin="0,24,0,0">
+          <Run x:Name="VersionRun" />
+          <Run Text=" · " />
+          <Hyperlink NavigateUri="https://deovandski.github.io/Deo-s-Framework16-LED-Matrix-Manager/" RequestNavigate="Link_RequestNavigate">Website</Hyperlink>
+          <Run Text=" · " />
+          <Hyperlink Click="OpenLogs_Click">Logs</Hyperlink>
+        </TextBlock>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ===== Two LED matrices side by side (Left / Right) ===== -->
+    <Grid Grid.Column="1" Margin="8,20,24,24">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition />
+        <ColumnDefinition />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <TextBlock x:Name="LeftHeader" Grid.Row="0" Grid.Column="0" Text="Left" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+      <TextBlock x:Name="RightHeader" Grid.Row="0" Grid.Column="1" Text="Right" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+
+      <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,4">
+        <ComboBox x:Name="LeftPattern" Width="170" Tag="Left" SelectionChanged="Pattern_Changed"
+                  AutomationProperties.Name="Left pattern" ToolTip="Fill the left module with a pattern" />
+        <Button Content="Clear" Tag="Left" Click="Clear_Click" Margin="6,0,0,0" />
+        <Button Content="Invert" Tag="Left" Click="Invert_Click" Margin="6,0,0,0" />
+      </StackPanel>
+      <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,4">
+        <ComboBox x:Name="RightPattern" Width="170" Tag="Right" SelectionChanged="Pattern_Changed"
+                  AutomationProperties.Name="Right pattern" ToolTip="Fill the right module with a pattern" />
+        <Button Content="Clear" Tag="Right" Click="Clear_Click" Margin="6,0,0,0" />
+        <Button Content="Invert" Tag="Right" Click="Invert_Click" Margin="6,0,0,0" />
+      </StackPanel>
+
+      <controls:LedGrid x:Name="LeftGrid" Grid.Row="2" Grid.Column="0" Margin="8"
+                        AutomationProperties.Name="Left LED matrix, 9 by 34" />
+      <controls:LedGrid x:Name="RightGrid" Grid.Row="2" Grid.Column="1" Margin="8"
+                        AutomationProperties.Name="Right LED matrix, 9 by 34" />
+    </Grid>
+  </Grid>
+</Window>

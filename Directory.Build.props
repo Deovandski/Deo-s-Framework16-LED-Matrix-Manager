@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Product>Deo's LED Matrix Manager</Product>
+    <Company>Deovandski</Company>
+    <Authors>Deovandski</Authors>
+    <Copyright>Copyright (c) 2026 Deovandski</Copyright>
+    <RepositoryUrl>https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager</RepositoryUrl>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+</Project>
