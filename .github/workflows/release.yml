@@ -1,0 +1,56 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the installer and publish a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Work out version
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          if ($v -notmatch '^\d+\.\d+\.\d+') { $v = '0.0.0' }
+          "VERSION=$v" >> $env:GITHUB_ENV
+          Write-Host "Version: $v"
+
+      - name: Test
+        run: dotnet test tests/LedMatrix.Core.Tests/LedMatrix.Core.Tests.csproj -c Release
+
+      - name: Publish app (self-contained, win-x64)
+        run: dotnet publish src/LedMatrix.App/LedMatrix.App.csproj -c Release -o publish -p:Version=${{ env.VERSION }}
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$env:VERSION" "/DPublishDir=..\publish" installer\LedMatrixManager.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: installer/Output/*.exe
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/*.exe
+          generate_release_notes: true
