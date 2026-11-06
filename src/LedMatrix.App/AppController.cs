@@ -29,6 +29,12 @@ internal sealed class AppController : IDisposable
     {
         _dispatcher = dispatcher;
         Settings = SettingsStore.Load(SettingsPath);
+        FileLogger.SetDetailed(Settings.DebugMode);
+        if (Settings.DebugMode)
+        {
+            Log.Info($"Debug mode on. Deo's LED Matrix Manager {App.VersionText}");
+        }
+
         _lastSavedJson = File.Exists(SettingsPath) ? SettingsStore.Serialize(Settings) : null;
         Devices = new DeviceManager(Settings, dispatcher);
         Engine = new AnimationEngine(Devices, stats: new SystemStats());
@@ -63,7 +69,7 @@ internal sealed class AppController : IDisposable
         Devices.Rescan();
 
         Diagnostics = new DiagnosticsLog(this, dispatcher);
-        Diagnostics.SetEnabled(Settings.DiagnosticsLog);
+        Diagnostics.SetEnabled(Settings.DebugMode);
     }
 
     public AppSettings Settings { get; }
@@ -170,10 +176,23 @@ internal sealed class AppController : IDisposable
         SaveSoon();
     }
 
-    public void SetDiagnosticsLog(bool on)
+    /// <summary>Debug mode: detailed log and the per-minute stats file. Off = warnings and errors only.</summary>
+    public void SetDebugMode(bool on)
     {
-        Settings.DiagnosticsLog = on;
-        Diagnostics.SetEnabled(on);
+        Settings.DebugMode = on;
+        if (on)
+        {
+            FileLogger.SetDetailed(true);
+            Log.Info($"Debug mode on. Deo's LED Matrix Manager {App.VersionText}");
+            Diagnostics.SetEnabled(true);
+        }
+        else
+        {
+            Diagnostics.SetEnabled(false);
+            Log.Info("Debug mode off");
+            FileLogger.SetDetailed(false);
+        }
+
         SaveSoon();
     }
 

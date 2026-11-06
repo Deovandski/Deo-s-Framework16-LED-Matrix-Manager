@@ -143,6 +143,31 @@ public sealed class MatrixDeviceTests : IDisposable
     }
 
     [Fact]
+    public void After_waking_the_module_the_app_waits_for_its_fade_in_before_drawing()
+    {
+        var dev = NewDevice();
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+        _port.EnqueueResponse(0x00, 0x20, 0x00);
+        dev.RunOnce();
+
+        // The first answer may only come after the firmware's blocking fade-in (up to ~5 s).
+        Assert.Equal(MatrixDevice.WakeTimeout, _port.LastReadTimeout);
+        Assert.True(MatrixDevice.WakeTimeout >= TimeSpan.FromSeconds(5.5));
+
+        // Lid closed, then opened: wake, ping (wait for the fade), then the picture.
+        dev.SetAwake(false);
+        dev.RunOnce();
+        _port.Writes.Clear();
+        _port.EnqueueResponse(0x00, 0x20, 0x00);
+        dev.SetAwake(true);
+        dev.RunOnce();
+        var ids = _port.Ids();
+        Assert.Equal(Cmd.Sleep, ids[0]);
+        Assert.Equal(Cmd.Version, ids[1]);
+        Assert.Contains(Cmd.DrawBw, ids.Skip(2));
+    }
+
+    [Fact]
     public void Counters_track_commands_frames_and_keep_alives()
     {
         var dev = NewDevice();

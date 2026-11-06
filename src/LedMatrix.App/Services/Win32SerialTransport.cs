@@ -9,11 +9,12 @@ namespace LedMatrix.App.Services;
 /// <summary>
 /// <see cref="ISerialTransport"/> straight on the Win32 COM port API: plain blocking reads and writes
 /// on the device's own worker thread. Unlike System.IO.Ports it starts no helper thread per port and
-/// allocates nothing per write. Same settings as before: 115200 8N1, DTR on, no handshake, 500 ms write timeout.
+/// allocates nothing per write. Settings: 115200 8N1, DTR on, no handshake, 6 s write timeout.
 /// </summary>
 internal sealed class Win32SerialTransport(string portName) : ISerialTransport
 {
-    private const int WriteTimeoutMs = 500;
+    /// <summary>Longer than the firmware's blocking fade when it wakes or sleeps (see MatrixDevice.WakeTimeout).</summary>
+    private const int WriteTimeoutMs = 6000;
 
     private SafeFileHandle? _handle;
     private uint _readTimeoutMs = uint.MaxValue;
@@ -114,7 +115,7 @@ internal sealed class Win32SerialTransport(string portName) : ISerialTransport
     private SafeFileHandle OpenHandle() =>
         _handle is { IsInvalid: false, IsClosed: false } h ? h : throw new InvalidOperationException("Port is not open.");
 
-    /// <summary>Reads return as soon as any byte arrives, or after <paramref name="ms"/> with nothing; writes give up after 500 ms.</summary>
+    /// <summary>Reads return as soon as any byte arrives, or after <paramref name="ms"/> with nothing; writes give up after 6 s.</summary>
     private void SetReadTimeout(uint ms)
     {
         if (ms == _readTimeoutMs)

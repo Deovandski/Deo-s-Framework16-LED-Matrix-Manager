@@ -9,7 +9,7 @@ using LedMatrix.Core.Animation;
 namespace LedMatrix.App.Services;
 
 /// <summary>
-/// "Log dump for analysis": while switched on, appends one CSV line a minute to a file per day
+/// The stats half of Debug mode: while switched on, appends one CSV line a minute to a file per day
 /// (Logs folder, stats-yyyy-MM-dd.csv) with the app's CPU and memory use, the animation clock's
 /// wake-ups, frames and USB traffic per module, and what was on screen. Off by default; costs one
 /// wake-up a minute when on, nothing when off. Files older than 14 days are deleted.

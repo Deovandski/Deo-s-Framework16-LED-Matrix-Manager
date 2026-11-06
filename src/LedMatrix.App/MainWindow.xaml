@@ -125,10 +125,10 @@
           <Run Text="Starting with Windows is set in " />
           <Hyperlink Click="StartupSettings_Click">Settings › Apps › Startup</Hyperlink>
         </TextBlock>
-        <CheckBox x:Name="DiagnosticsCheck" Content="Log dump for analysis" Margin="0,8,0,0" Click="Diagnostics_Click"
-                  ToolTip="Adds one line a minute about CPU, memory and LED traffic to a file for each day" />
-        <TextBlock x:Name="DiagnosticsText" Style="{StaticResource Caption}" Margin="26,2,0,0" Visibility="Collapsed">
-          <Run Text="Writing to " />
+        <CheckBox x:Name="DebugModeCheck" Content="Debug mode" Margin="0,8,0,0" Click="DebugMode_Click"
+                  ToolTip="Writes a detailed log, plus one line a minute about CPU, memory and LED traffic to a file for each day. Leave off for normal use." />
+        <TextBlock x:Name="DebugModeText" Style="{StaticResource Caption}" Margin="26,2,0,0" Visibility="Collapsed">
+          <Run Text="Logging in detail, with stats in " />
           <Hyperlink Click="OpenLogs_Click"><Run x:Name="DiagnosticsFileRun" /></Hyperlink>
         </TextBlock>
 

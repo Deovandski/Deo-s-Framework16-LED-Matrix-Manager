@@ -66,8 +66,8 @@ public partial class MainWindow : Window
         }
 
         CrtTransitionsCheck.IsChecked = s.CrtTransitions;
-        DiagnosticsCheck.IsChecked = s.DiagnosticsLog;
-        UpdateDiagnosticsText();
+        DebugModeCheck.IsChecked = s.DebugMode;
+        UpdateDebugModeText();
         GapCheck.IsChecked = s.KeyboardGap;
         VersionRun.Text = $"Version {App.VersionText}";
 
@@ -295,16 +295,15 @@ public partial class MainWindow : Window
     private void CrtTransitions_Click(object sender, RoutedEventArgs e) =>
         _controller.SetCrtTransitions(CrtTransitionsCheck.IsChecked == true);
 
-    private void Diagnostics_Click(object sender, RoutedEventArgs e)
+    private void DebugMode_Click(object sender, RoutedEventArgs e)
     {
-        _controller.SetDiagnosticsLog(DiagnosticsCheck.IsChecked == true);
-        UpdateDiagnosticsText();
+        _controller.SetDebugMode(DebugModeCheck.IsChecked == true);
+        UpdateDebugModeText();
     }
 
-    private void UpdateDiagnosticsText()
+    private void UpdateDebugModeText()
     {
-        var on = _controller.Diagnostics.Enabled;
-        DiagnosticsText.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        DebugModeText.Visibility = _controller.Settings.DebugMode ? Visibility.Visible : Visibility.Collapsed;
         DiagnosticsFileRun.Text = Path.GetFileName(DiagnosticsLog.TodayFile);
     }
 

@@ -22,7 +22,12 @@ public readonly record struct DeviceCounters(
 public sealed class MatrixDevice : IDisposable
 {
     public static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan ResponseTimeout = TimeSpan.FromMilliseconds(250);
+    /// <summary>
+    /// How long a woken module may take to answer. Waking from sleep, the firmware fades the LEDs in
+    /// with a blocking loop (+5 brightness every 100 ms: about 2 s at 39%, 5.1 s at full) and doesn't
+    /// service USB meanwhile, so commands sent during the fade stall until it ends.
+    /// </summary>
+    public static readonly TimeSpan WakeTimeout = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(10);
 
     private readonly ISerialTransport _transport;
@@ -355,10 +360,10 @@ public sealed class MatrixDevice : IDisposable
             var response = new byte[Protocol.ResponseLength];
             var chunk = new byte[Protocol.ResponseLength];
             var total = 0;
-            var deadline = _time.GetUtcNow() + ResponseTimeout;
+            var deadline = _time.GetUtcNow() + WakeTimeout;
             while (total < response.Length && _time.GetUtcNow() < deadline)
             {
-                var read = _transport.Read(chunk, ResponseTimeout);
+                var read = _transport.Read(chunk, deadline - _time.GetUtcNow());
                 if (read <= 0)
                 {
                     break;
@@ -431,9 +436,13 @@ public sealed class MatrixDevice : IDisposable
             return;
         }
 
+        // The version query is also the first command after opening: if the module was asleep it
+        // wakes up and fades in first, and the answer only comes once that's done (see WakeTimeout).
+        var waitedForWake = false;
         if (!_versionQueried)
         {
             _versionQueried = true;
+            waitedForWake = true;
             Version = QueryVersion();
             Log.Info($"{PortName}: firmware {Version?.ToString() ?? "unknown"}");
             StatusChanged?.Invoke(this, EventArgs.Empty);
@@ -442,6 +451,17 @@ public sealed class MatrixDevice : IDisposable
         if (_needsWake)
         {
             Write(Protocol.SetSleep(false));
+            if (!waitedForWake)
+            {
+                // Let the fade-in finish before the picture goes out (the answer is just a ping).
+                var version = QueryVersion();
+                if (Version is null && version is not null)
+                {
+                    Version = version;
+                    StatusChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+
             _needsWake = false;
             _sleepSent = false;
             _lastSentFrame = null;

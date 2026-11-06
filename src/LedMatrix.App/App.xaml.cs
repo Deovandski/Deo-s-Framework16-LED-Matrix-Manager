@@ -43,8 +43,7 @@ public partial class App : Application
             return;
         }
 
-        FileLogger.Install();
-        Log.Info($"Starting Deo's LED Matrix Manager {VersionText}");
+        FileLogger.Install(); // warnings and errors only, until Debug mode says otherwise
         DispatcherUnhandledException += (_, args) =>
         {
             Log.Error("Unhandled UI exception", args.Exception);

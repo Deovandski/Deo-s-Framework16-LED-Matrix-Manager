@@ -13,6 +13,11 @@ public static class Log
 {
     public static Action<LogLevel, string>? Sink { get; set; }
 
+    /// <summary>Messages below this level are dropped before they reach the sink (the app sets it from Debug mode).</summary>
+    public static LogLevel MinimumLevel { get; set; } = LogLevel.Debug;
+
+    public static bool IsEnabled(LogLevel level) => level >= MinimumLevel && Sink is not null;
+
     public static void Debug(string message) => Write(LogLevel.Debug, message);
 
     public static void Info(string message) => Write(LogLevel.Info, message);
@@ -26,6 +31,11 @@ public static class Log
 
     private static void Write(LogLevel level, string message)
     {
+        if (level < MinimumLevel)
+        {
+            return;
+        }
+
         try
         {
             Sink?.Invoke(level, message);

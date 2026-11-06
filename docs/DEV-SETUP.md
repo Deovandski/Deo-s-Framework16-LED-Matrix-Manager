@@ -64,15 +64,15 @@ What's where:
 
 ### Debugging the screen auto on/off
 
-- Every event (display change, lid, display power, lock, resume) and every on/off decision is logged to `%LocalAppData%\DeoLedMatrixManager\logs\app.log`. The **Logs** link at the bottom of the window opens that folder. Debug builds log extra detail.
+- With **Debug mode** on, every event (display change, lid, display power, lock, resume) and every on/off decision is logged to `%LocalAppData%\DeoLedMatrixManager\logs\app.log`. The **Logs** link at the bottom of the window opens that folder. Debug builds log extra detail.
 - Useful breakpoints: `ScreenStateMonitor.Publish` (what Windows reported) and `AppController.ApplyPower` (the decision).
 - Easy triggers: **Win+P** (PC screen only, Duplicate, Extend, Second screen only), closing the lid while docked, and `powercfg /change monitor-timeout-ac 1` to test screen timeout quickly. Put your normal timeout back afterwards.
 - Closing the lid puts the PC to sleep unless an external monitor is attached or *"When I close the lid"* is set to **Do nothing** in Power Options.
 - Turn on the module's **DIP1** switch to see *why* the firmware went to sleep (`SLP#`, `USB`, `CMD`).
 
-### Log dump for analysis
+### Debug mode (detailed log and stats)
 
-Tick **Log dump for analysis** (sidebar, under Start with Windows) to record one line a minute to `%LocalAppData%\DeoLedMatrixManager\logs\stats-yyyy-MM-dd.csv` (the **Logs** link opens the folder). Each line covers the minute before it:
+Normally the app only logs warnings and errors. Tick **Debug mode** (sidebar, under Start with Windows) to log everything to `app.log` and to record one line a minute to `%LocalAppData%\DeoLedMatrixManager\logs\stats-yyyy-MM-dd.csv` (the **Logs** link opens the folder). Each stats line covers the minute before it:
 
 | Columns | Meaning |
 |---|---|

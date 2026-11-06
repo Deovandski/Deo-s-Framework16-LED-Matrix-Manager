@@ -5,7 +5,11 @@ using LedMatrix.Core;
 
 namespace LedMatrix.App.Services;
 
-/// <summary>Rolling text log in %LocalAppData%\DeoLedMatrixManager\logs (5 x 1 MB).</summary>
+/// <summary>
+/// Rolling text log in %LocalAppData%\DeoLedMatrixManager\logs (5 x 1 MB). Normally only warnings
+/// and errors are written (nothing at all on a good day); Debug mode in the window writes everything.
+/// The folder is only created when there's something to write.
+/// </summary>
 internal static class FileLogger
 {
     private const long MaxBytes = 1024 * 1024;
@@ -18,21 +22,13 @@ internal static class FileLogger
 
     public static void Install()
     {
-        Directory.CreateDirectory(LogDirectory);
         _path = Path.Combine(LogDirectory, "app.log");
-#if DEBUG
-        var minimum = LogLevel.Debug;
-#else
-        var minimum = LogLevel.Info;
-#endif
-        Log.Sink = (level, message) =>
-        {
-            if (level >= minimum)
-            {
-                Write(level, message);
-            }
-        };
+        Log.MinimumLevel = LogLevel.Warn; // until settings say Debug mode is on
+        Log.Sink = Write;
     }
+
+    /// <summary>Debug mode: log everything (true) or only warnings and errors (false).</summary>
+    public static void SetDetailed(bool detailed) => Log.MinimumLevel = detailed ? LogLevel.Debug : LogLevel.Warn;
 
     private static void Write(LogLevel level, string message)
     {
@@ -46,6 +42,7 @@ internal static class FileLogger
         {
             try
             {
+                Directory.CreateDirectory(LogDirectory);
                 var info = new FileInfo(_path);
                 if (info.Exists && info.Length > MaxBytes)
                 {

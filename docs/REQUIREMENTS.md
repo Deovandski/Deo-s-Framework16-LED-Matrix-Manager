@@ -153,7 +153,7 @@ Specified in [proposals/ANIMATION-TEXT-CRT.md](proposals/ANIMATION-TEXT-CRT.md) 
 
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
-| FR-90 | "Log dump for analysis" checkbox (off by default, remembered): while on, one CSV line a minute is appended to a file per day in the Logs folder (`stats-yyyy-MM-dd.csv`) with CPU and memory use, GC activity, the animation clock's wake-ups, frames and USB traffic per module, and what was showing. Files older than 14 days are deleted. | C | Done |
+| FR-90 | "Debug mode" checkbox (off by default, remembered). Off: only warnings and errors are logged, and nothing else is written. On: a detailed log, plus one CSV line a minute appended to a file per day in the Logs folder (`stats-yyyy-MM-dd.csv`) with CPU and memory use, GC activity, the animation clock's wake-ups, frames and USB traffic per module, and what was showing. Stats files older than 14 days are deleted. | C | Done |
 
 ## 5. Non-functional requirements
 
@@ -165,7 +165,7 @@ Specified in [proposals/ANIMATION-TEXT-CRT.md](proposals/ANIMATION-TEXT-CRT.md) 
 | NFR-04 | Accessibility: full keyboard navigation, UI Automation names on all controls, works in High Contrast themes, and the pixel editor can be used from the keyboard (arrow keys plus Space). | M |
 | NFR-05 | No admin rights needed to install or run. No drivers. No background service. | M |
 | NFR-06 | Unexpected errors are logged, the serial connection reconnects, and the app keeps running. | M |
-| NFR-07 | Serial I/O runs off the UI thread, on one worker thread per module that sleeps until there is work. Writes time out after 500 ms (a greyscale frame keeps the module busy for about 40 ms, so the official tools' 20 ms would cause needless reconnects). | M |
+| NFR-07 | Serial I/O runs off the UI thread, on one worker thread per module that sleeps until there is work. Writes time out after 6 s, and after waking a module the app waits for its answer (up to 6 s) before sending the picture: waking or sleeping, the firmware fades the LEDs with a blocking loop (about 2 s at 39% brightness, 5.1 s at full) and services no USB traffic meanwhile. | M |
 | NFR-08 | No telemetry and no network access. | M |
 | NFR-09 | **Full installer** (Inno Setup 6): per-user install to `%LocalAppData%\Programs`, no admin. It's self-contained, so no separate .NET install is needed. Includes a Start menu shortcut, a "Start with Windows" option, a "Launch now" option, and a clean uninstall that removes the startup entry and settings on request. Published to GitHub Releases by CI when a `v*` tag is pushed. | M |
 | NFR-11 | **Project website** on GitHub Pages (`site/`, deployed by GitHub Actions), with a download button pointing to the latest release, a feature overview and FAQ. | M |

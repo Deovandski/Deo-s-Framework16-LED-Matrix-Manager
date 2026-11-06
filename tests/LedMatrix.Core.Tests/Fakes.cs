@@ -57,8 +57,11 @@ internal sealed class FakeTransport : ISerialTransport
         Writes.Add(data.ToArray()); // the device reuses its buffer, so keep a copy
     }
 
+    public TimeSpan? LastReadTimeout { get; private set; }
+
     public int Read(byte[] buffer, TimeSpan timeout)
     {
+        LastReadTimeout = timeout;
         if (_responses.Count == 0)
         {
             return 0;

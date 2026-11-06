@@ -20,7 +20,7 @@ internal sealed class SerialPortTransport(string portName) : ISerialTransport
         Close();
         var port = new SerialPort(PortName, Protocol.BaudRate)
         {
-            WriteTimeout = 500,
+            WriteTimeout = 6000, // longer than the firmware's blocking wake/sleep fade
             ReadTimeout = 250,
             DtrEnable = true, // like pyserial / Web Serial, which the official tools use
             Handshake = Handshake.None,
