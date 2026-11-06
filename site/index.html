@@ -180,11 +180,13 @@
     details { border-bottom: 1px solid var(--machined); max-width: 46rem; padding: 14px 0; }
     summary { cursor: pointer; font-weight: 700; }
     details p { margin: 10px 0 2px; color: var(--text-soft); }
-    code { font-size: 0.92em; background: var(--machined); padding: 1px 5px; border-radius: 4px; }
+    code { font-size: 0.92em; background: var(--machined); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
     ul.credits { max-width: 46rem; padding-left: 1.2em; margin: 0 0 18px; }
     #disclosure p { max-width: 46rem; }
     ul.credits li { margin: 0 0 10px; color: var(--text-soft); }
     ul.credits a { color: var(--text); }
+    #privacy p { max-width: 46rem; }
+    #privacy h3 { margin-top: 28px; }
 
     footer { padding: 72px 0 48px; font-size: 14px; color: var(--text-soft); }
     footer p { margin: 4px 0; max-width: 46rem; }
@@ -339,12 +341,38 @@
         </details>
         <details>
           <summary>Does it need the internet or collect any data?</summary>
-          <p>No. It never connects to the network and sends nothing anywhere.</p>
+          <p>No. It never connects to the network and sends nothing anywhere. See <a href="#privacy">Privacy</a>.</p>
         </details>
         <details>
           <summary>Can I uninstall it cleanly?</summary>
           <p>Yes, from Settings &gt; Apps. The uninstaller removes the startup entry and asks whether to keep your saved drawings and settings.</p>
         </details>
+      </section>
+
+      <section id="privacy">
+        <h2>Privacy</h2>
+        <p class="lede">The app collects nothing and sends nothing. It never connects to the internet, and everything it saves stays on your PC.</p>
+
+        <h3>What the app saves, on your PC only</h3>
+        <ul class="credits">
+          <li>Your settings and drawings, in <code>%AppData%\DeoLedMatrixManager</code>.</li>
+          <li>A log of warnings and errors, in <code>%LocalAppData%\DeoLedMatrixManager\logs</code>. With Debug mode on, it also logs what the app does and writes a once-a-minute performance file; those files are deleted after 14 days. Logs describe the app and the modules (ports, USB slots, firmware version, CPU and memory use), not you.</li>
+          <li>The Microsoft Store copy keeps these files in its own private folder, which Windows deletes when you uninstall it. The GitHub installer's uninstaller asks whether to delete them.</li>
+        </ul>
+
+        <h3>What the app reads</h3>
+        <ul class="credits">
+          <li>Your PC's manufacturer and model, to check it's a Framework Laptop 16.</li>
+          <li>Lid, screen and power state, to switch the LEDs off and on.</li>
+          <li>Time, date, battery level, and CPU and RAM use, only when you put them in your text.</li>
+        </ul>
+        <p class="muted">These are used on your PC as the app runs and are never sent anywhere. There's no telemetry, no analytics, no ads, no account and no update check. Links in the app open in your web browser.</p>
+
+        <h3>This website</h3>
+        <p class="muted">The site has no cookies and no analytics. It's hosted on GitHub Pages and loads its font from Google Fonts, so <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub</a> and <a href="https://developers.google.com/fonts/faq/privacy">Google</a> see your IP address when they send you the page and the font.</p>
+
+        <h3>Questions</h3>
+        <p class="muted">Open an <a href="https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/issues">issue</a> or a pull request on GitHub. Changes to this policy will be posted here. Last updated 6 November 2026.</p>
       </section>
 
       <section id="disclosure">
@@ -362,7 +390,7 @@
     </main>
 
     <footer>
-      <p>Made by <a href="https://github.com/Deovandski">Deovandski</a>. Source code and issues on <a href="https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager">GitHub</a>.</p>
+      <p>Made by <a href="https://github.com/Deovandski">Deovandski</a>. Source code and issues on <a href="https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager">GitHub</a>. <a href="#privacy">Privacy</a>.</p>
     </footer>
   </div>
 
