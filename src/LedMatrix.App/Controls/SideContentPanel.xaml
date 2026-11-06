@@ -31,7 +31,7 @@
 
     <!-- Text -->
     <StackPanel x:Name="TextPanel" Margin="0,6,0,0">
-      <TextBox x:Name="TextInput" MaxLength="60" TextChanged="Text_Changed"
+      <TextBox x:Name="TextValueBox" MaxLength="60" TextChanged="Text_Changed"
                AutomationProperties.Name="Text to show"
                ToolTip="Tokens: {time} {date} {battery} {cpu} {ram}" />
       <Grid Margin="0,6,0,0">

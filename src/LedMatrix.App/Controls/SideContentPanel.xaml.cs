@@ -84,7 +84,7 @@ public partial class SideContentPanel : UserControl
                 AnimationBox.SelectedIndex = 0;
             }
 
-            TextInput.Text = _content.Text.Value;
+            TextValueBox.Text = _content.Text.Value;
             LayoutBox.SelectedIndex = (int)_content.Text.Layout;
             FontBox.SelectedIndex = (int)_content.Text.Font;
             FillMotions();
@@ -231,7 +231,7 @@ public partial class SideContentPanel : UserControl
             return;
         }
 
-        var value = TextInput.Text;
+        var value = TextValueBox.Text;
         Change(c => c.Text.Value = value);
     }
 
