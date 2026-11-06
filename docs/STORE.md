@@ -12,13 +12,14 @@ so it works with Smart App Control on and without SmartScreen warnings.
 | Start with Windows | The app's checkbox (registry Run key) | A startup task; switched in **Settings › Apps › Startup** (the app links there) |
 | Settings and logs | `%AppData%` / `%LocalAppData%` | The same paths for the app; Windows keeps the files in the package's private folder, and the app's **Logs** link opens the real one |
 
-The app spots the package at runtime (`PackageInfo.IsPackaged`). The package has two entries for
-the same .exe:
+The app spots the package at runtime (`PackageInfo.IsPackaged`). The package has one entry, the
+Start menu tile, with a startup task attached. MSIX startup tasks can't pass arguments, so at start
+the app asks Windows how it was launched (`AppInstance.GetActivatedEventArgs`, read by
+`PackageInfo.StartedAtSignIn`). Launched by the startup task, it stays in the tray. Launched from
+Start, it opens the window.
 
-- **App:** the Start menu tile. It opens the window.
-- **Startup:** hidden, with no tile. It runs at sign-in with `--background`, so the app starts in the tray.
-
-MSIX startup tasks can't pass arguments, which is why the second entry exists.
+(A first version used a second, hidden entry that passed `--background`. The Store rejects that:
+an entry with `AppListEntry="none"` counts as a "headless app" and needs a waiver from Microsoft.)
 
 If someone installs both copies, the single-instance check lets only one of them run.
 
@@ -66,7 +67,7 @@ Optional: run the **Windows App Certification Kit** (installed with the Windows 
 2. **Pricing and availability:** Free, all markets.
 3. **Properties:** Category **Utilities & tools**. Answer "No" to "accesses, collects or transmits personal information".
 4. **Age ratings:** fill in the questionnaire. There's no user-generated content shared with others and no in-app purchases.
-5. **Packages:** upload the `.msix`. When asked about the **runFullTrust** restricted capability, explain: *"A desktop (WPF) app that drives the Framework Laptop 16 LED Matrix modules over USB serial and listens for display, lid and power events. It needs full trust to open serial ports and use those Win32 notifications."*
+5. **Packages:** upload the `.msix`. It shows a warning that **runFullTrust** needs approval; that is expected. Give the reason under **Submission options › Restricted capabilities**: *"A desktop (WPF) app that drives the Framework Laptop 16 LED Matrix modules over USB serial and listens for display, lid and power events. It needs full trust to open serial ports and use those Win32 notifications."*
 6. **Store listing:** use the text below, plus screenshots of the main window.
    - One screenshot showing an animation on both modules.
    - One showing text.

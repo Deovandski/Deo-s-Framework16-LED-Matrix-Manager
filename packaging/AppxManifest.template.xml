@@ -8,10 +8,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 desktop rescap">
+  IgnorableNamespaces="uap desktop rescap">
 
   <Identity Name="{{IdentityName}}" Publisher="{{Publisher}}" Version="{{Version}}" ProcessorArchitecture="x64" />
 
@@ -30,7 +29,12 @@
   </Resources>
 
   <Applications>
-    <!-- The app as people open it from Start: shows the window. -->
+    <!--
+      One entry, as the Store requires (an entry hidden from Start needs a special waiver).
+      The startup task starts the same program at sign-in; it can't pass arguments, so the app
+      asks Windows how it was started (PackageInfo.StartedAtSignIn) and stays in the tray then.
+      People switch it on or off in Settings > Apps > Startup.
+    -->
     <Application Id="App" Executable="DeoLedMatrixManager.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="{{DisplayName}}"
@@ -40,24 +44,8 @@
         Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
       </uap:VisualElements>
-    </Application>
-
-    <!--
-      The same program started at sign-in, straight to the tray. MSIX startup tasks can't pass
-      arguments, so this hidden second entry (no Start menu tile) adds "background" for them.
-      People switch it on or off in Settings > Apps > Startup.
-    -->
-    <Application Id="Startup" Executable="DeoLedMatrixManager.exe" EntryPoint="Windows.FullTrustApplication"
-                 uap10:Parameters="--background">
-      <uap:VisualElements
-        DisplayName="Deo's LED Matrix Manager (startup)"
-        Description="Starts Deo's LED Matrix Manager in the tray when you sign in."
-        BackgroundColor="transparent"
-        Square150x150Logo="Assets\Square150x150Logo.png"
-        Square44x44Logo="Assets\Square44x44Logo.png"
-        AppListEntry="none" />
       <Extensions>
-        <desktop:Extension Category="windows.startupTask">
+        <desktop:Extension Category="windows.startupTask" Executable="DeoLedMatrixManager.exe" EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask TaskId="DeoLedMatrixManagerStartup" Enabled="true" DisplayName="{{DisplayName}}" />
         </desktop:Extension>
       </Extensions>

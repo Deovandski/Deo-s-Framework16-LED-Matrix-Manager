@@ -301,4 +301,49 @@ internal static class NativeMethods
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     public static extern int CM_Get_DevNode_Registry_PropertyW(
         uint dnDevInst, uint ulProperty, out uint pulRegDataType, [Out] char[] buffer, ref uint pulLength, uint ulFlags);
+
+    // ---- How a packaged app was started (Windows.ApplicationModel.AppInstance) ----
+    // Declared by hand rather than through the WinRT projection, which would add about 25 MB
+    // to the app for this one call. Vtable order follows windows.applicationmodel.h.
+
+    public const int ActivationKind_StartupTask = 1020;
+
+    [DllImport("combase.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    public static extern int WindowsCreateString(string sourceString, int length, out IntPtr hstring);
+
+    [DllImport("combase.dll", ExactSpelling = true)]
+    public static extern int WindowsDeleteString(IntPtr hstring);
+
+    [DllImport("combase.dll", ExactSpelling = true)]
+    public static extern int RoGetActivationFactory(
+        IntPtr activatableClassId, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out IAppInstanceStatics? factory);
+
+    [ComImport]
+    [Guid("9D11E77F-9EA6-47AF-A6EC-46784C5BA254")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IAppInstanceStatics
+    {
+        // IInspectable
+        void GetIids(out int iidCount, out IntPtr iids);
+        void GetRuntimeClassName(out IntPtr className);
+        void GetTrustLevel(out int trustLevel);
+
+        // IAppInstanceStatics (only the first two slots are used)
+        IntPtr GetRecommendedInstance();
+        IActivatedEventArgs? GetActivatedEventArgs();
+    }
+
+    [ComImport]
+    [Guid("CF651713-CD08-4FD8-B697-A281B6544E2E")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IActivatedEventArgs
+    {
+        // IInspectable
+        void GetIids(out int iidCount, out IntPtr iids);
+        void GetRuntimeClassName(out IntPtr className);
+        void GetTrustLevel(out int trustLevel);
+
+        // IActivatedEventArgs
+        int GetKind();
+    }
 }

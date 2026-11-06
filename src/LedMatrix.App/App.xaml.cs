@@ -77,7 +77,9 @@ public partial class App : Application
 
         _singleInstance.ListenForShowRequests(() => Dispatcher.InvokeAsync(ShowMainWindow));
 
-        var background = e.Args.Contains(StartupRegistration.BackgroundArg, StringComparer.OrdinalIgnoreCase);
+        // Started at sign-in: by the Run key ("--background") or by the Store package's startup task.
+        var background = e.Args.Contains(StartupRegistration.BackgroundArg, StringComparer.OrdinalIgnoreCase)
+                         || PackageInfo.StartedAtSignIn;
         if (!background)
         {
             ShowMainWindow();
