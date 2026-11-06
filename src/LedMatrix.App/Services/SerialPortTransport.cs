@@ -3,7 +3,10 @@ using LedMatrix.Core;
 
 namespace LedMatrix.App.Services;
 
-/// <summary><see cref="ISerialTransport"/> on top of System.IO.Ports.</summary>
+/// <summary>
+/// <see cref="ISerialTransport"/> on top of System.IO.Ports. Kept as a fallback for
+/// <see cref="Win32SerialTransport"/>: set the environment variable LEDMATRIX_SERIAL=dotnet to use it.
+/// </summary>
 internal sealed class SerialPortTransport(string portName) : ISerialTransport
 {
     private SerialPort? _port;
@@ -58,10 +61,10 @@ internal sealed class SerialPortTransport(string portName) : ISerialTransport
         }
     }
 
-    public void Write(byte[] data)
+    public void Write(ReadOnlySpan<byte> data)
     {
         var port = _port ?? throw new InvalidOperationException("Port is not open.");
-        port.Write(data, 0, data.Length);
+        port.BaseStream.Write(data);
     }
 
     public int Read(byte[] buffer, TimeSpan timeout)

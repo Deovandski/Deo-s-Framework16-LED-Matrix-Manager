@@ -140,6 +140,50 @@ public static class Protocol
         return cmds;
     }
 
+    // ---- Allocation-free encoders (the device worker reuses one 64-byte buffer for every command) ----
+
+    /// <summary>Writes the DrawBW command for <paramref name="frame"/> into <paramref name="destination"/>; returns its length (42).</summary>
+    public static int EncodeDrawBlackAndWhite(Frame frame, Span<byte> destination)
+    {
+        const int length = 3 + (Frame.PixelCount + 7) / 8;
+        var d = destination[..length];
+        d.Clear();
+        d[0] = Magic0;
+        d[1] = Magic1;
+        d[2] = (byte)CommandId.DrawBw;
+        var px = frame.Pixels;
+        for (var i = 0; i < Frame.PixelCount; i++)
+        {
+            if (px[i] != 0)
+            {
+                d[3 + i / 8] |= (byte)(1 << (i % 8));
+            }
+        }
+
+        return length;
+    }
+
+    /// <summary>Writes the StageColumn command for column <paramref name="x"/>; returns its length (38).</summary>
+    public static int EncodeStageColumn(Frame frame, int x, Span<byte> destination)
+    {
+        const int length = 4 + Frame.Height;
+        destination[0] = Magic0;
+        destination[1] = Magic1;
+        destination[2] = (byte)CommandId.StageColumn;
+        destination[3] = (byte)x;
+        frame.CopyColumn(x, destination.Slice(4, Frame.Height));
+        return length;
+    }
+
+    /// <summary>Writes the FlushColumns command; returns its length (3).</summary>
+    public static int EncodeFlushColumns(Span<byte> destination)
+    {
+        destination[0] = Magic0;
+        destination[1] = Magic1;
+        destination[2] = (byte)CommandId.FlushColumns;
+        return 3;
+    }
+
     public static FirmwareVersion? ParseVersion(ReadOnlySpan<byte> response)
     {
         if (response.Length < 3)

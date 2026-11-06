@@ -8,6 +8,8 @@ namespace LedMatrix.App.Controls;
 
 /// <summary>
 /// A 9x34 LED editor drawn in a single OnRender pass (no per-cell elements, so it stays light).
+/// The hover and keyboard-focus outlines live in a separate overlay visual, so moving the mouse
+/// doesn't redraw the 306 cells, and a preview frame identical to the shown one is ignored.
 /// Left mouse paints with <see cref="BrushValue"/>, right mouse or Ctrl+left erases.
 /// Keyboard: arrows move the cursor, Space/Enter toggles, Delete erases.
 /// </summary>
@@ -28,6 +30,7 @@ public sealed class LedGrid : FrameworkElement
     private byte _paintValue;
     private bool _painting;
     private bool _readOnly;
+    private readonly DrawingVisual _overlay = new();
 
     public LedGrid()
     {
@@ -35,6 +38,7 @@ public sealed class LedGrid : FrameworkElement
         FocusVisualStyle = null;
         Cursor = Cursors.Cross;
         SnapsToDevicePixels = true;
+        AddVisualChild(_overlay);
     }
 
     /// <summary>Raised whenever the user changes a pixel (also continuously while dragging).</summary>
@@ -46,6 +50,11 @@ public sealed class LedGrid : FrameworkElement
         get => _frame;
         set
         {
+            if (value.Equals(_frame))
+            {
+                return; // unchanged: nothing to redraw
+            }
+
             _frame = value.Clone();
             InvalidateVisual();
         }
@@ -63,7 +72,7 @@ public sealed class LedGrid : FrameworkElement
             _readOnly = value;
             _painting = false;
             Cursor = value ? Cursors.Arrow : Cursors.Cross;
-            InvalidateVisual();
+            RenderOverlay();
         }
     }
 
@@ -75,28 +84,43 @@ public sealed class LedGrid : FrameworkElement
 
     protected override Size ArrangeOverride(Size finalSize) => finalSize;
 
+    protected override int VisualChildrenCount => 1;
+
+    protected override Visual GetVisualChild(int index) =>
+        index == 0 ? _overlay : throw new ArgumentOutOfRangeException(nameof(index));
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         var board = Board(out var cell);
         drawingContext.DrawRoundedRectangle(BoardBrush, null, board, 10, 10);
         var radius = cell * 0.3;
+        var pixels = _frame.Pixels;
 
         for (var y = 0; y < Frame.Height; y++)
         {
             for (var x = 0; x < Frame.Width; x++)
             {
-                drawingContext.DrawRoundedRectangle(Levels[_frame[x, y]], null, CellRect(board, cell, x, y), radius, radius);
+                drawingContext.DrawRoundedRectangle(Levels[pixels[x + Frame.Width * y]], null, CellRect(board, cell, x, y), radius, radius);
             }
         }
 
+        RenderOverlay(); // the size may have changed
+    }
+
+    /// <summary>Redraws only the hover and focus outlines (drawn above the cells).</summary>
+    private void RenderOverlay()
+    {
+        using var dc = _overlay.RenderOpen();
+        var board = Board(out var cell);
+        var radius = cell * 0.3;
         if (_hover is { } h)
         {
-            drawingContext.DrawRoundedRectangle(null, HoverPen, CellRect(board, cell, h.X, h.Y), radius, radius);
+            dc.DrawRoundedRectangle(null, HoverPen, CellRect(board, cell, h.X, h.Y), radius, radius);
         }
 
         if (IsKeyboardFocused && !_readOnly)
         {
-            drawingContext.DrawRoundedRectangle(null, FocusPen, CellRect(board, cell, _cursor.X, _cursor.Y), radius, radius);
+            dc.DrawRoundedRectangle(null, FocusPen, CellRect(board, cell, _cursor.X, _cursor.Y), radius, radius);
         }
     }
 
@@ -133,7 +157,7 @@ public sealed class LedGrid : FrameworkElement
         if (hover != _hover)
         {
             _hover = hover;
-            InvalidateVisual();
+            RenderOverlay();
         }
 
         if (_painting && hover is { } h)
@@ -165,7 +189,7 @@ public sealed class LedGrid : FrameworkElement
         if (_hover is not null)
         {
             _hover = null;
-            InvalidateVisual();
+            RenderOverlay();
         }
     }
 
@@ -199,20 +223,20 @@ public sealed class LedGrid : FrameworkElement
         }
 
         _cursor = (x, y);
-        InvalidateVisual();
+        RenderOverlay();
         e.Handled = true;
     }
 
     protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnGotKeyboardFocus(e);
-        InvalidateVisual();
+        RenderOverlay();
     }
 
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnLostKeyboardFocus(e);
-        InvalidateVisual();
+        RenderOverlay();
     }
 
     private void Paint(int x, int y)

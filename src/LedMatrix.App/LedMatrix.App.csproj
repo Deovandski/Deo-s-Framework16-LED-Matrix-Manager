@@ -20,6 +20,9 @@
     <PublishReadyToRun>true</PublishReadyToRun>
     <DebugType>none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- A quiet tray app: no background GC thread, and the OS thread pool instead of .NET's own. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <UseWindowsThreadPool>true</UseWindowsThreadPool>
   </PropertyGroup>
 
   <ItemGroup>

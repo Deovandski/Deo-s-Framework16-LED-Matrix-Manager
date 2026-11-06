@@ -85,11 +85,73 @@ public sealed class MatrixDeviceTests : IDisposable
         _port.Writes.Clear();
 
         dev.SetFrame(Patterns.Find("Full")!.Create());
-        dev.SetFrame(Patterns.Find("Blank")!.Create());
+        dev.SetFrame(Patterns.Find("Checkerboard")!.Create());
         dev.RunOnce();
 
         Assert.Single(_port.Writes);
-        Assert.All(_port.Writes[0][3..], b => Assert.Equal(0, b));
+        Assert.Equal(Protocol.DrawBlackAndWhite(Patterns.Find("Checkerboard")!.Create()), _port.Writes[0]);
+    }
+
+    [Fact]
+    public void A_picture_the_module_already_shows_is_not_sent_again_unless_forced()
+    {
+        var dev = NewDevice();
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+        dev.RunOnce();
+        _port.Writes.Clear();
+
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+        dev.RunOnce();
+        Assert.Empty(_port.Writes);
+
+        dev.Resync(); // e.g. after resume: everything goes out again
+        dev.RunOnce();
+        Assert.Contains(Cmd.DrawBw, _port.Ids());
+    }
+
+    [Fact]
+    public void Greyscale_frames_are_encoded_like_the_reference_commands()
+    {
+        var dev = NewDevice();
+        dev.RunOnce();
+        _port.Writes.Clear();
+
+        var gradient = Patterns.Find("Gradient")!.Create();
+        dev.SetFrame(gradient);
+        dev.RunOnce();
+        var expected = Protocol.FrameCommands(gradient);
+        Assert.Equal(expected.Count, _port.Writes.Count);
+        for (var i = 0; i < expected.Count; i++)
+        {
+            Assert.Equal(expected[i], _port.Writes[i]);
+        }
+    }
+
+    [Fact]
+    public void New_content_on_a_scrolling_module_stops_redraws_and_restarts_the_scroll()
+    {
+        var dev = NewDevice();
+        dev.SetContent(Patterns.Find("Checkerboard")!.Create(), 125);
+        dev.RunOnce();
+        _port.Writes.Clear();
+
+        dev.SetContent(Patterns.Find("Full")!.Create(), 125);
+        dev.RunOnce();
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.Animate, Cmd.DrawBw, Cmd.AnimationPeriod, Cmd.Animate }, _port.Ids());
+        Assert.Equal(0, _port.Writes[0][3]);
+        Assert.Equal(1, _port.Writes[3][3]);
+    }
+
+    [Fact]
+    public void The_worker_sleeps_until_needed()
+    {
+        var dev = NewDevice();
+        dev.RunOnce();
+        Assert.Equal(MatrixDevice.KeepAliveInterval, dev.NextWait()); // awake: next keep-alive
+
+        dev.SetAwake(false);
+        dev.RunOnce();
+        Assert.Equal(Timeout.InfiniteTimeSpan, dev.NextWait()); // LEDs off: until something changes
     }
 
     [Fact]

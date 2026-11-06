@@ -159,7 +159,7 @@ Specified in [proposals/ANIMATION-TEXT-CRT.md](proposals/ANIMATION-TEXT-CRT.md) 
 | NFR-04 | Accessibility: full keyboard navigation, UI Automation names on all controls, works in High Contrast themes, and the pixel editor can be used from the keyboard (arrow keys plus Space). | M |
 | NFR-05 | No admin rights needed to install or run. No drivers. No background service. | M |
 | NFR-06 | Unexpected errors are logged, the serial connection reconnects, and the app keeps running. | M |
-| NFR-07 | Serial I/O runs off the UI thread, with a 20 ms write timeout to match the official tools. | M |
+| NFR-07 | Serial I/O runs off the UI thread, on one worker thread per module that sleeps until there is work. Writes time out after 500 ms (a greyscale frame keeps the module busy for about 40 ms, so the official tools' 20 ms would cause needless reconnects). | M |
 | NFR-08 | No telemetry and no network access. | M |
 | NFR-09 | **Full installer** (Inno Setup 6): per-user install to `%LocalAppData%\Programs`, no admin. It's self-contained, so no separate .NET install is needed. Includes a Start menu shortcut, a "Start with Windows" option, a "Launch now" option, and a clean uninstall that removes the startup entry and settings on request. Published to GitHub Releases by CI when a `v*` tag is pushed. | M |
 | NFR-11 | **Project website** on GitHub Pages (`site/`, deployed by GitHub Actions), with a download button pointing to the latest release, a feature overview and FAQ. | M |
@@ -177,7 +177,8 @@ Why WPF rather than the alternatives:
 
 Libraries: deliberately **no third-party runtime dependencies**, to keep the app light and avoid supply-chain risk.
 
-- `System.IO.Ports` (Microsoft's package): serial communication. This is the only NuGet dependency of the app.
+- Serial ports are driven directly through the Win32 COM API (`Win32SerialTransport`): no helper threads, no allocations per write.
+- `System.IO.Ports` (Microsoft's package) is kept only as a fallback transport (set `LEDMATRIX_SERIAL=dotnet`) and for listing COM ports. It is the only NuGet dependency of the app.
 - Device discovery reads `HKLM\SYSTEM\CurrentControlSet\Enum\USB\VID_32AC&PID_0020\<serial>\Device Parameters\PortName` (read-only, no admin, no WMI), cross-checked against present COM ports and confirmed with a Version query.
 - Tray icon: a small `Shell_NotifyIcon` wrapper with a WPF (Fluent) context menu.
 - Win32 interop via hand-written P/Invoke: `QueryDisplayConfig`, `RegisterPowerSettingNotification`, `WTSRegisterSessionNotification`, `WM_DEVICECHANGE`.

@@ -12,8 +12,8 @@ public interface ISerialTransport : IDisposable
 
     void Close();
 
-    /// <summary>Writes one complete command.</summary>
-    void Write(byte[] data);
+    /// <summary>Writes one complete command. The data may be a reused buffer: copy it if you keep it.</summary>
+    void Write(ReadOnlySpan<byte> data);
 
     /// <summary>Reads up to <paramref name="buffer"/>.Length bytes, waiting at most <paramref name="timeout"/>. Returns bytes read (0 on timeout).</summary>
     int Read(byte[] buffer, TimeSpan timeout);

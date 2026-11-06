@@ -23,8 +23,11 @@ public sealed class MatrixDevice : IDisposable
 
     private readonly ISerialTransport _transport;
     private readonly TimeProvider _time;
+    private static readonly TimeSpan MinWait = TimeSpan.FromMilliseconds(50);
+
     private readonly object _gate = new();
     private readonly AutoResetEvent _signal = new(false);
+    private readonly byte[] _buffer = new byte[Protocol.MaxCommandLength];
     private Thread? _thread;
     private volatile bool _stopping;
 
@@ -37,11 +40,14 @@ public sealed class MatrixDevice : IDisposable
     private bool _identifyRequested;
     private ushort? _scrollPeriod;
     private bool _scrollDirty;
+    private bool _forceFrame;
 
     // Worker-only state
     private bool _sleepSent;
     private bool _needsWake = true;
     private bool _versionQueried;
+    private Frame? _lastSentFrame; // what the module shows, if no firmware scroll moved it since
+    private bool _scrollRunning = true; // unknown counts as running (another tool may have left one on)
     private DateTimeOffset _lastWrite = DateTimeOffset.MinValue;
     private DateTimeOffset _nextOpenAttempt = DateTimeOffset.MinValue;
     private TimeSpan _reconnectDelay = TimeSpan.FromMilliseconds(500);
@@ -87,6 +93,26 @@ public sealed class MatrixDevice : IDisposable
         {
             _frame = frame.Clone();
             _frameDirty = true;
+        }
+
+        _signal.Set();
+    }
+
+    /// <summary>
+    /// Sets the picture and the firmware scroll together, so the worker never acts on half an update
+    /// (one lock, one wake-up). See <see cref="SetScroll"/> for <paramref name="scrollPeriodMs"/>.
+    /// </summary>
+    public void SetContent(Frame frame, ushort? scrollPeriodMs)
+    {
+        lock (_gate)
+        {
+            _frame = frame.Clone();
+            _frameDirty = true;
+            if (_scrollPeriod != scrollPeriodMs)
+            {
+                _scrollPeriod = scrollPeriodMs;
+                _scrollDirty = true;
+            }
         }
 
         _signal.Set();
@@ -156,6 +182,7 @@ public sealed class MatrixDevice : IDisposable
         lock (_gate)
         {
             _frameDirty = true;
+            _forceFrame = true;
             _brightnessDirty = true;
             _scrollDirty = true;
         }
@@ -185,14 +212,39 @@ public sealed class MatrixDevice : IDisposable
     {
         while (!_stopping)
         {
-            _signal.WaitOne(TimeSpan.FromSeconds(1));
+            RunOnce();
             if (_stopping)
             {
                 break;
             }
 
-            RunOnce();
+            // Sleep until there's something to do: new state (signalled), the next reconnect attempt
+            // or the next keep-alive. While the LEDs are off it sleeps until signalled.
+            var wait = NextWait();
+            if (wait != TimeSpan.Zero)
+            {
+                _signal.WaitOne(wait);
+            }
         }
+    }
+
+    /// <summary>How long the worker may sleep before it has work of its own (Timeout.InfiniteTimeSpan = until signalled).</summary>
+    internal TimeSpan NextWait()
+    {
+        var now = _time.GetUtcNow();
+        if (!_transport.IsOpen)
+        {
+            var untilOpen = _nextOpenAttempt - now;
+            return untilOpen < MinWait ? MinWait : untilOpen;
+        }
+
+        if (_sleepSent)
+        {
+            return Timeout.InfiniteTimeSpan;
+        }
+
+        var untilKeepAlive = KeepAliveInterval - (now - _lastWrite);
+        return untilKeepAlive < MinWait ? MinWait : untilKeepAlive;
     }
 
     /// <summary>One synchronisation pass. Public to tests via InternalsVisibleTo.</summary>
@@ -230,14 +282,22 @@ public sealed class MatrixDevice : IDisposable
         }
         catch (UnauthorizedAccessException)
         {
-            Log.Info($"{PortName}: port is in use by another application");
+            if (_status != DeviceStatus.PortBusy)
+            {
+                Log.Info($"{PortName}: port is in use by another application; retrying quietly");
+            }
+
             SetStatus(DeviceStatus.PortBusy);
             ScheduleReconnect();
             return false;
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or InvalidOperationException)
         {
-            Log.Warn($"{PortName}: open failed", ex);
+            if (_status != DeviceStatus.Disconnected)
+            {
+                Log.Warn($"{PortName}: open failed; retrying quietly", ex);
+            }
+
             SetStatus(DeviceStatus.Disconnected);
             ScheduleReconnect();
             return false;
@@ -252,6 +312,8 @@ public sealed class MatrixDevice : IDisposable
         _versionQueried = false;
         _needsWake = true;
         _sleepSent = false;
+        _lastSentFrame = null;
+        _scrollRunning = true;
         lock (_gate)
         {
             _frameDirty = true;
@@ -296,7 +358,7 @@ public sealed class MatrixDevice : IDisposable
 
     private void Sync()
     {
-        bool awake, identify, frameDirty, brightnessDirty, scrollDirty;
+        bool awake, identify, frameDirty, brightnessDirty, scrollDirty, forceFrame;
         Frame frame;
         byte brightness;
         ushort? scroll;
@@ -307,6 +369,7 @@ public sealed class MatrixDevice : IDisposable
             frameDirty = _frameDirty;
             brightnessDirty = _brightnessDirty;
             scrollDirty = _scrollDirty;
+            forceFrame = _forceFrame;
             frame = _frame;
             brightness = _brightness;
             scroll = _scrollPeriod;
@@ -314,6 +377,12 @@ public sealed class MatrixDevice : IDisposable
             _frameDirty = false;
             _brightnessDirty = false;
             _scrollDirty = false;
+            _forceFrame = false;
+        }
+
+        if (forceFrame)
+        {
+            _lastSentFrame = null;
         }
 
         if (!awake)
@@ -333,6 +402,7 @@ public sealed class MatrixDevice : IDisposable
                     _frameDirty |= frameDirty;
                     _brightnessDirty |= brightnessDirty;
                     _scrollDirty |= scrollDirty;
+                    _forceFrame |= forceFrame;
                 }
             }
 
@@ -353,6 +423,7 @@ public sealed class MatrixDevice : IDisposable
             Write(Protocol.SetSleep(false));
             _needsWake = false;
             _sleepSent = false;
+            _lastSentFrame = null;
             frameDirty = true;
             brightnessDirty = true;
             scrollDirty = true;
@@ -362,21 +433,26 @@ public sealed class MatrixDevice : IDisposable
 
         if (identify)
         {
-            if (scroll is not null)
+            if (_scrollRunning)
             {
                 Write(Protocol.SetAnimate(false));
+                _scrollRunning = false;
             }
 
             RunIdentify(brightness);
+            _lastSentFrame = null;
             frameDirty = true;
             brightnessDirty = true;
             scrollDirty = true;
         }
 
-        // Stop the firmware scroll before sending a new picture, so it isn't rotated mid-update.
-        if (scrollDirty && scroll is null)
+        // A scrolling module gets a new picture by stopping the scroll, drawing, and restarting it,
+        // so the picture isn't rotated mid-update and the scroll starts from the new picture's top.
+        var restartScroll = scroll is not null && (scrollDirty || frameDirty);
+        if (_scrollRunning && ((scrollDirty && scroll is null) || restartScroll))
         {
             Write(Protocol.SetAnimate(false));
+            _scrollRunning = false;
         }
 
         if (brightnessDirty)
@@ -384,19 +460,25 @@ public sealed class MatrixDevice : IDisposable
             Write(Protocol.SetBrightness(brightness));
         }
 
+        // Skip a picture the module already shows (no firmware scroll involved).
+        if (frameDirty && !scrollDirty && scroll is null && frame.Equals(_lastSentFrame))
+        {
+            frameDirty = false;
+        }
+
         if (frameDirty)
         {
-            foreach (var cmd in Protocol.FrameCommands(frame))
-            {
-                Write(cmd);
-            }
+            SendFrame(frame);
+            _lastSentFrame = frame;
         }
 
         // Start the firmware scroll after the picture is in place.
-        if (scrollDirty && scroll is { } period)
+        if (restartScroll && scroll is { } period)
         {
             Write(Protocol.SetAnimationPeriod(period));
             Write(Protocol.SetAnimate(true));
+            _scrollRunning = true;
+            _lastSentFrame = null; // the module's picture moves from here on
         }
 
         if (_time.GetUtcNow() - _lastWrite >= KeepAliveInterval)
@@ -421,7 +503,24 @@ public sealed class MatrixDevice : IDisposable
         }
     }
 
-    private void Write(byte[] command)
+    /// <summary>One DrawBW command for black/white pictures, else 9 StageColumn + FlushColumns; no allocations.</summary>
+    private void SendFrame(Frame frame)
+    {
+        if (frame.IsBlackAndWhite())
+        {
+            Write(_buffer.AsSpan(0, Protocol.EncodeDrawBlackAndWhite(frame, _buffer)));
+            return;
+        }
+
+        for (var x = 0; x < Frame.Width; x++)
+        {
+            Write(_buffer.AsSpan(0, Protocol.EncodeStageColumn(frame, x, _buffer)));
+        }
+
+        Write(_buffer.AsSpan(0, Protocol.EncodeFlushColumns(_buffer)));
+    }
+
+    private void Write(ReadOnlySpan<byte> command)
     {
         _transport.Write(command);
         _lastWrite = _time.GetUtcNow();

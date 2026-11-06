@@ -175,7 +175,8 @@ public static class Animations
                     var c = (w - 1) / 2.0;
                     var xs = c + (c - 0.5) * Math.Sin(2 * Math.PI * LedAnimation_Mod(y - t, 34) / 34.0);
                     return 255 * Math.Max(0, 1 - Math.Abs(x - xs));
-                }),
+                },
+                moduleScrollable: true),
             () => new ProceduralAnimation("helix", "Helix", "Two strands crossing like DNA", 34,
                 (x, y, t, w, h) =>
                 {
@@ -191,7 +192,8 @@ public static class Animations
                     // Rungs every 4-4-4-5 rows so they repeat exactly every 34 rows.
                     var rung = p % 17 is 0 or 4 or 8 or 12 && x > Math.Min(x1, x2) && x < Math.Max(x1, x2) ? 45 : 0;
                     return Math.Max(Math.Max(b1, b2), rung);
-                }),
+                },
+                moduleScrollable: true),
             () => new RainAnimation(),
             () => new SnowAnimation(),
             () => new ProceduralAnimation("plasma", "Plasma", "Soft shifting light", 64,
@@ -335,7 +337,8 @@ internal sealed class SnowAnimation : LedAnimation
             var y = (int)Math.Round(k.Y);
             if (x >= 0 && x < target.Width && y >= 0 && y < target.Height)
             {
-                target[x, y] = Math.Max(target[x, y], (byte)200);
+                // Full on: a pure black/white frame goes out as one compact command instead of ten.
+                target[x, y] = 255;
             }
         }
     }

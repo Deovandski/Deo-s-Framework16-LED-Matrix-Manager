@@ -120,6 +120,23 @@ public class AnimationTests
     }
 
     [Fact]
+    public void Sine_and_helix_run_on_the_module_and_snow_stays_black_and_white()
+    {
+        Assert.True(Animations.Find("sine")!.Create().ModuleScrollable);
+        Assert.True(Animations.Find("helix")!.Create().ModuleScrollable);
+
+        var snow = Animations.Find("snow")!.Create();
+        snow.Reset(9, 34);
+        var b = new PixelBuffer(9, 34);
+        for (var i = 0; i < 200; i++)
+        {
+            snow.Step();
+            snow.Draw(b);
+            Assert.True(b.ToFrame().IsBlackAndWhite());
+        }
+    }
+
+    [Fact]
     public void Ball_and_life_have_no_direction_to_reverse()
     {
         Assert.Equal(ReverseKind.None, Animations.Find("ball")!.ReverseKind);

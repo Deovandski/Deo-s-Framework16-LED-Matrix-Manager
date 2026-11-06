@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using LedMatrix.App.Interop;
 using LedMatrix.App.Services;
 using LedMatrix.Core;
@@ -16,6 +17,7 @@ public partial class App : Application
     private AppController? _controller;
     private TrayIcon? _tray;
     private MainWindow? _mainWindow;
+    private bool _themeApplied;
     private MenuItem? _autoItem;
     private MenuItem? _onItem;
     private MenuItem? _offItem;
@@ -56,16 +58,19 @@ public partial class App : Application
             args.SetObserved();
         };
 
-        // Windows 11 Fluent look, following the system light/dark setting and accent color.
-        ThemeMode = ThemeMode.System;
-
+        // The Fluent theme is loaded on first use (window or tray menu), not here: an app that
+        // starts with Windows and sits in the tray shouldn't pay for it until it shows something.
         _messageWindow = new MessageWindow();
         _controller = new AppController(_messageWindow, Dispatcher);
         _controller.StateChanged += (_, _) => UpdateTray();
 
         _tray = new TrayIcon(_messageWindow) { Menu = BuildTrayMenu() };
         _tray.Activated += (_, _) => ShowMainWindow();
-        _tray.MenuOpening += (_, _) => RefreshTrayMenu();
+        _tray.MenuOpening += (_, _) =>
+        {
+            EnsureTheme();
+            RefreshTrayMenu();
+        };
         UpdateTray();
 
         _singleInstance.ListenForShowRequests(() => Dispatcher.InvokeAsync(ShowMainWindow));
@@ -83,6 +88,16 @@ public partial class App : Application
         base.OnExit(e);
     }
 
+    /// <summary>Windows 11 Fluent look, following the system light/dark setting and accent color.</summary>
+    private void EnsureTheme()
+    {
+        if (!_themeApplied)
+        {
+            _themeApplied = true;
+            ThemeMode = ThemeMode.System;
+        }
+    }
+
     public void ShowMainWindow()
     {
         if (_controller is null || _exiting)
@@ -94,8 +109,16 @@ public partial class App : Application
         {
             // The window is created on demand and fully closed when dismissed, so the
             // app uses very little memory while it sits in the tray.
+            EnsureTheme();
             _mainWindow = new MainWindow(_controller);
-            _mainWindow.Closed += (_, _) => _mainWindow = null;
+            _mainWindow.Closed += (_, _) =>
+            {
+                _mainWindow = null;
+
+                // Hand the window's memory back once the UI is idle, instead of waiting for a
+                // full collection that a quiet tray app may not trigger for hours.
+                Dispatcher.InvokeAsync(() => GC.Collect(2, GCCollectionMode.Optimized), DispatcherPriority.ApplicationIdle);
+            };
         }
 
         _mainWindow.Show();

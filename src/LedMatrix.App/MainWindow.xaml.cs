@@ -15,8 +15,8 @@ namespace LedMatrix.App;
 
 public partial class MainWindow : Window
 {
-    private static readonly Brush OnBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0xC3, 0x6B));
-    private static readonly Brush OffBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
+    private static readonly Brush OnBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x3C, 0xC3, 0x6B)));
+    private static readonly Brush OffBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)));
 
     private readonly AppController _controller;
     private bool _loading = true; // suppresses change handlers while the UI is being filled in
@@ -88,7 +88,10 @@ public partial class MainWindow : Window
         RefreshContent();
         RefreshState();
         _loading = false;
-        _controller.PreviewEnabled = true; // grids animate while the window is open
+        // Grids animate only while the window can be seen: not when minimized or hidden.
+        StateChanged += (_, _) => UpdatePreviewEnabled();
+        IsVisibleChanged += (_, _) => UpdatePreviewEnabled();
+        _controller.PreviewEnabled = true;
     }
 
     private static string Percent(double value) => $"{Math.Round(value / 255 * 100)}%";
@@ -97,6 +100,15 @@ public partial class MainWindow : Window
         Enum.Parse<MatrixSide>((string)((FrameworkElement)sender).Tag);
 
     private LedGrid GridOf(MatrixSide side) => side == MatrixSide.Left ? LeftGrid : RightGrid;
+
+    private static Brush Frozen(Brush brush)
+    {
+        brush.Freeze();
+        return brush;
+    }
+
+    private void UpdatePreviewEnabled() =>
+        _controller.PreviewEnabled = IsVisible && WindowState != WindowState.Minimized;
 
     private void OnStateChanged(object? sender, EventArgs e) => RefreshState();
 

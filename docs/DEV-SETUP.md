@@ -70,6 +70,15 @@ What's where:
 - Closing the lid puts the PC to sleep unless an external monitor is attached or *"When I close the lid"* is set to **Do nothing** in Power Options.
 - Turn on the module's **DIP1** switch to see *why* the firmware went to sleep (`SLP#`, `USB`, `CMD`).
 
+### Serial transport fallback
+
+The app talks to the modules through the Win32 COM port API (`Win32SerialTransport`). If a module misbehaves and you want to rule that out, start the app with the environment variable `LEDMATRIX_SERIAL=dotnet` to use the System.IO.Ports transport instead:
+
+```powershell
+$env:LEDMATRIX_SERIAL = "dotnet"; .\src\LedMatrix.App\bin\Debug\net10.0-windows\DeoLedMatrixManager.exe
+et10.0-windows\DeoLedMatrixManager.exe
+```
+
 ### Regenerating the README GIFs
 
 After changing an animation, re-render the GIFs in `docs/media` (needs Python with Pillow: `pip install pillow`):

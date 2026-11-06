@@ -123,7 +123,13 @@ public static class SettingsStore
     }
 
     /// <summary>Writes atomically (temp file + replace) so a crash never leaves a half-written file.</summary>
-    public static void Save(string path, AppSettings settings)
+    public static void Save(string path, AppSettings settings) => Write(path, Serialize(settings));
+
+    public static string Serialize(AppSettings settings) =>
+        JsonSerializer.Serialize(settings, SettingsJsonContext.Default.AppSettings);
+
+    /// <summary>Writes <paramref name="json"/> atomically (temp file + replace).</summary>
+    public static void Write(string path, string json)
     {
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
@@ -132,7 +138,7 @@ public static class SettingsStore
         }
 
         var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(settings, SettingsJsonContext.Default.AppSettings));
+        File.WriteAllText(tmp, json);
         File.Move(tmp, path, overwrite: true);
     }
 

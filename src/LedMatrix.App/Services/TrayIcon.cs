@@ -23,6 +23,7 @@ internal sealed class TrayIcon : IDisposable
     private IntPtr _hIcon;
     private bool _added;
     private bool _lit = true;
+    private bool _lightTaskbar;
     private string _tooltip = "Deo's LED Matrix Manager";
 
     public TrayIcon(MessageWindow window)
@@ -44,9 +45,15 @@ internal sealed class TrayIcon : IDisposable
 
     public void Update(bool lit, string tooltip)
     {
+        tooltip = tooltip.Length > 127 ? tooltip[..127] : tooltip;
+        if (lit == _lit && tooltip == _tooltip)
+        {
+            return; // nothing visible changed: skip the call into Explorer
+        }
+
         var iconChanged = lit != _lit;
         _lit = lit;
-        _tooltip = tooltip.Length > 127 ? tooltip[..127] : tooltip;
+        _tooltip = tooltip;
         if (iconChanged)
         {
             LoadIcon();
@@ -112,7 +119,8 @@ internal sealed class TrayIcon : IDisposable
 
     private void LoadIcon()
     {
-        var theme = TaskbarUsesLightTheme() ? "light" : "dark";
+        _lightTaskbar = TaskbarUsesLightTheme();
+        var theme = _lightTaskbar ? "light" : "dark";
         var state = _lit ? "on" : "off";
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", $"tray-{theme}-{state}.ico");
         var size = GetSystemMetrics(SM_CXSMICON);
@@ -156,9 +164,15 @@ internal sealed class TrayIcon : IDisposable
 
         if (msg == WM_SETTINGCHANGE)
         {
-            // Taskbar light/dark may have changed ("ImmersiveColorSet").
-            LoadIcon();
-            Modify();
+            // Many settings broadcast this; only a theme change ("ImmersiveColorSet") matters, and
+            // only if the taskbar actually switched between light and dark.
+            if (lParam != IntPtr.Zero && Marshal.PtrToStringUni(lParam) == "ImmersiveColorSet" &&
+                TaskbarUsesLightTheme() != _lightTaskbar)
+            {
+                LoadIcon();
+                Modify();
+            }
+
             return false;
         }
 

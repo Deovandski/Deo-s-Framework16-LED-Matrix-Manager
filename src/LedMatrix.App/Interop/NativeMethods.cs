@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace LedMatrix.App.Interop;
 
@@ -216,4 +217,76 @@ internal static class NativeMethods
     public static int LoWord(IntPtr value) => unchecked((short)(long)value);
 
     public static int HiWord(IntPtr value) => unchecked((short)((long)value >> 16));
+
+    // ---- Serial ports (Win32SerialTransport) ----
+
+    public const uint GENERIC_READ = 0x80000000;
+    public const uint GENERIC_WRITE = 0x40000000;
+    public const uint OPEN_EXISTING = 3;
+    public const int ERROR_ACCESS_DENIED = 5;
+    public const uint PURGE_TXCLEAR = 0x0004;
+    public const uint PURGE_RXCLEAR = 0x0008;
+
+    /// <summary>DCB.Flags bits: fBinary (bit 0) and fDtrControl = DTR_CONTROL_ENABLE (bits 4-5 = 01).</summary>
+    public const uint DCB_BINARY = 0x0001;
+    public const uint DCB_DTR_CONTROL_ENABLE = 0x0010;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DCB
+    {
+        public uint DCBlength;
+        public uint BaudRate;
+        public uint Flags;
+        public ushort wReserved;
+        public ushort XonLim;
+        public ushort XoffLim;
+        public byte ByteSize;
+        public byte Parity;
+        public byte StopBits;
+        public byte XonChar;
+        public byte XoffChar;
+        public byte ErrorChar;
+        public byte EofChar;
+        public byte EvtChar;
+        public ushort wReserved1;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COMMTIMEOUTS
+    {
+        public uint ReadIntervalTimeout;
+        public uint ReadTotalTimeoutMultiplier;
+        public uint ReadTotalTimeoutConstant;
+        public uint WriteTotalTimeoutMultiplier;
+        public uint WriteTotalTimeoutConstant;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
+    public static extern SafeFileHandle CreateFileW(
+        string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCommState(SafeFileHandle hFile, ref DCB lpDCB);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetCommState(SafeFileHandle hFile, ref DCB lpDCB);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetCommTimeouts(SafeFileHandle hFile, ref COMMTIMEOUTS lpCommTimeouts);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PurgeComm(SafeFileHandle hFile, uint dwFlags);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool WriteFile(SafeFileHandle hFile, ref byte lpBuffer, uint nNumberOfBytesToWrite, out uint lpNumberOfBytesWritten, IntPtr lpOverlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadFile(SafeFileHandle hFile, ref byte lpBuffer, uint nNumberOfBytesToRead, out uint lpNumberOfBytesRead, IntPtr lpOverlapped);
 }

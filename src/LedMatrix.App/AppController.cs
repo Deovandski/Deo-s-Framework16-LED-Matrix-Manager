@@ -20,14 +20,19 @@ internal sealed class AppController : IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _rescanTimer;
+    private readonly object _previewGate = new();
+    private readonly Frame?[] _pendingPreview = new Frame?[2];
+    private bool _previewPosted;
+    private string? _lastSavedJson;
 
     public AppController(MessageWindow window, Dispatcher dispatcher)
     {
         _dispatcher = dispatcher;
         Settings = SettingsStore.Load(SettingsPath);
+        _lastSavedJson = File.Exists(SettingsPath) ? SettingsStore.Serialize(Settings) : null;
         Devices = new DeviceManager(Settings, dispatcher);
         Engine = new AnimationEngine(Devices, stats: new SystemStats());
-        Engine.Preview += (side, frame) => _dispatcher.InvokeAsync(() => PreviewFrame?.Invoke(side, frame));
+        Engine.Preview += QueuePreview;
 
         _saveTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromSeconds(1) };
         _saveTimer.Tick += (_, _) => SaveNow();
@@ -40,11 +45,8 @@ internal sealed class AppController : IDisposable
             Devices.Rescan();
         };
 
-        Devices.DevicesChanged += (_, _) =>
-        {
-            SaveSoon(); // role assignment may have changed
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        };
+        Devices.DevicesChanged += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
+        Devices.RolesChanged += (_, _) => SaveSoon();
 
         Screen = new ScreenStateMonitor(window);
         Screen.Changed += (_, _) => ApplyPower();
@@ -213,11 +215,59 @@ internal sealed class AppController : IDisposable
         _saveTimer.Stop();
         try
         {
-            SettingsStore.Save(SettingsPath, Settings);
+            // Skip the disk write when nothing actually changed.
+            var json = SettingsStore.Serialize(Settings);
+            if (json != _lastSavedJson)
+            {
+                SettingsStore.Write(SettingsPath, json);
+                _lastSavedJson = json;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Error("Saving settings failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Called on the engine's clock thread. Keeps only the newest frame per side and posts at most one
+    /// UI update at a time, at render priority, so a busy UI never replays a backlog of stale frames.
+    /// </summary>
+    private void QueuePreview(MatrixSide side, Frame frame)
+    {
+        lock (_previewGate)
+        {
+            _pendingPreview[(int)side] = frame;
+            if (_previewPosted)
+            {
+                return;
+            }
+
+            _previewPosted = true;
+        }
+
+        _dispatcher.InvokeAsync(FlushPreview, DispatcherPriority.Render);
+    }
+
+    private void FlushPreview()
+    {
+        Frame? left, right;
+        lock (_previewGate)
+        {
+            left = _pendingPreview[(int)MatrixSide.Left];
+            right = _pendingPreview[(int)MatrixSide.Right];
+            _pendingPreview[0] = _pendingPreview[1] = null;
+            _previewPosted = false;
+        }
+
+        if (left is not null)
+        {
+            PreviewFrame?.Invoke(MatrixSide.Left, left);
+        }
+
+        if (right is not null)
+        {
+            PreviewFrame?.Invoke(MatrixSide.Right, right);
         }
     }
 

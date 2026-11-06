@@ -47,14 +47,14 @@ internal sealed class FakeTransport : ISerialTransport
 
     public void Close() => IsOpen = false;
 
-    public void Write(byte[] data)
+    public void Write(ReadOnlySpan<byte> data)
     {
         if (WriteException is not null)
         {
             throw WriteException;
         }
 
-        Writes.Add(data);
+        Writes.Add(data.ToArray()); // the device reuses its buffer, so keep a copy
     }
 
     public int Read(byte[] buffer, TimeSpan timeout)

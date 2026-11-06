@@ -57,7 +57,7 @@ public sealed class EngineTests : IDisposable
     [Fact]
     public void Animations_run_at_the_chosen_speed()
     {
-        _engine.Configure(Config(left: Anim("sine", speed: 8)));
+        _engine.Configure(Config(left: Anim("plasma", speed: 8)));
         Assert.True(_engine.IsRunning);
         var before = _sink.Shown.Count(s => s.Side == MatrixSide.Left);
 
@@ -201,6 +201,123 @@ public sealed class EngineTests : IDisposable
         Advance(0.2);
         Assert.Equal(sent, _sink.Shown.Count);
         Assert.True(previews > 2);
+    }
+
+    [Fact]
+    public void The_clock_wakes_only_when_the_next_picture_is_due()
+    {
+        _engine.Configure(Config(left: Anim("plasma", speed: 8)));
+        Assert.Equal(TimeSpan.FromSeconds(1.0 / 8), _engine.NextTickIn);
+
+        _engine.Configure(Config(left: Anim("plasma", speed: 1)));
+        Assert.Equal(TimeSpan.FromSeconds(1), _engine.NextTickIn);
+
+        // Fast content is capped at the frame rate.
+        _engine.Configure(Config(left: Anim("plasma", speed: 32)));
+        Assert.Equal(TimeSpan.FromSeconds(1.0 / AnimationEngine.FramesPerSecond), _engine.NextTickIn);
+
+        // The CRT look runs at its own, lower rate even over a still picture.
+        _engine.Configure(Config(left: new SideContent { CrtLook = true }));
+        Assert.Equal(TimeSpan.FromSeconds(1.0 / AnimationEngine.CrtFramesPerSecond), _engine.NextTickIn);
+    }
+
+    [Fact]
+    public void Slow_animations_keep_their_speed_when_the_clock_sleeps_between_steps()
+    {
+        _engine.Configure(Config(left: Anim("plasma", speed: 1)));
+        var start = _sink.Shown.Count(s => s.Side == MatrixSide.Left);
+        for (var i = 0; i < 10; i++)
+        {
+            _time.Advance(_engine.NextTickIn!.Value);
+            _engine.Tick();
+        }
+
+        // Ten wake-ups, ten steps, ten new pictures: one per second.
+        Assert.Equal(start + 10, _sink.Shown.Count(s => s.Side == MatrixSide.Left));
+    }
+
+    [Fact]
+    public void A_clock_text_wakes_once_a_minute_and_reads_no_stats()
+    {
+        var stats = new CountingStats();
+        using var engine = new AnimationEngine(_sink, _time, stats, useTimer: false);
+        var clock = new SideContent { Kind = ContentKind.Text };
+        clock.Text.Value = "{time}";
+        engine.Configure(Config(left: clock));
+        Assert.True(engine.NextTickIn > TimeSpan.FromSeconds(1));
+        Assert.True(engine.NextTickIn <= TimeSpan.FromSeconds(61));
+        Assert.Equal(0, stats.Reads);
+
+        // With a stats token the text is refreshed every second, and only that stat is read.
+        clock.Text.Value = "{cpu}";
+        engine.Configure(Config(left: clock));
+        Assert.Equal(TimeSpan.FromSeconds(1), engine.NextTickIn);
+        Assert.Equal(1, stats.Reads);
+    }
+
+    [Fact]
+    public void Reconfiguring_with_the_same_content_or_toggling_previews_sends_nothing()
+    {
+        _engine.Configure(Config(left: Anim("plasma"), leftDrawing: Patterns.Find("Full")!.Create()));
+        var sent = _sink.Shown.Count;
+
+        _engine.Configure(Config(left: Anim("plasma"), leftDrawing: Patterns.Find("Full")!.Create()));
+        _engine.PreviewEnabled = true;
+        _engine.PreviewEnabled = false;
+        Assert.Equal(sent, _sink.Shown.Count);
+    }
+
+    [Fact]
+    public void Editing_one_module_leaves_a_firmware_scroll_on_the_other_alone()
+    {
+        _engine.Configure(Config(left: new SideContent(), right: Anim("checker")));
+        Assert.Single(_sink.Shown, s => s.Side == MatrixSide.Right);
+
+        var drawing = new Frame();
+        drawing[3, 3] = 255;
+        _engine.Configure(Config(left: new SideContent(), right: Anim("checker"), leftDrawing: drawing));
+        Assert.Equal(drawing, _sink.Shown.Last(s => s.Side == MatrixSide.Left).Frame);
+        Assert.Single(_sink.Shown, s => s.Side == MatrixSide.Right);
+
+        // A new speed restarts the module's scroll with the new period.
+        _engine.Configure(Config(left: new SideContent(), right: Anim("checker", speed: 4), leftDrawing: drawing));
+        Assert.Equal((ushort)250, _sink.Shown.Last(s => s.Side == MatrixSide.Right).Period);
+    }
+
+    [Fact]
+    public void Changing_the_link_mode_or_switching_the_crt_look_off_updates_the_modules()
+    {
+        var full = Patterns.Find("Full")!.Create();
+        _engine.Configure(Config(leftDrawing: full));
+        Assert.Equal(new Frame(), _sink.Shown.Last(s => s.Side == MatrixSide.Right).Frame);
+
+        // Mirror: the right module now shows the left drawing.
+        _engine.Configure(Config(leftDrawing: full, link: LinkMode.Mirror));
+        Assert.Equal(full, _sink.Shown.Last(s => s.Side == MatrixSide.Right).Frame);
+
+        // CRT look on, then off again: the plain picture comes back.
+        _engine.Configure(Config(left: new SideContent { CrtLook = true }, leftDrawing: full));
+        Assert.NotEqual(full, _sink.Shown.Last(s => s.Side == MatrixSide.Left).Frame);
+        _engine.Configure(Config(left: new SideContent(), leftDrawing: full));
+        Assert.Equal(full, _sink.Shown.Last(s => s.Side == MatrixSide.Left).Frame);
+        Assert.False(_engine.IsRunning);
+    }
+
+    private sealed class CountingStats : ISystemStats
+    {
+        public int Reads { get; private set; }
+
+        public int? BatteryPercent => Count(80);
+
+        public int? CpuPercent => Count(5);
+
+        public int? RamPercent => Count(40);
+
+        private int Count(int value)
+        {
+            Reads++;
+            return value;
+        }
     }
 
     [Fact]

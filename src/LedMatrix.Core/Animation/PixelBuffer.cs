@@ -38,6 +38,18 @@ public sealed class PixelBuffer
     /// <summary>Copies a 9x34 window starting at (left, top) into a module frame.</summary>
     public Frame ToFrame(int left = 0, int top = 0)
     {
+        if (left >= 0 && top >= 0 && left + Frame.Width <= Width && top + Frame.Height <= Height)
+        {
+            // Common case: the window lies inside the canvas, so copy whole rows.
+            var pixels = new byte[Frame.PixelCount];
+            for (var y = 0; y < Frame.Height; y++)
+            {
+                Data.AsSpan(left + Width * (top + y), Frame.Width).CopyTo(pixels.AsSpan(Frame.Width * y, Frame.Width));
+            }
+
+            return Frame.Wrap(pixels);
+        }
+
         var f = new Frame();
         for (var y = 0; y < Frame.Height; y++)
         {

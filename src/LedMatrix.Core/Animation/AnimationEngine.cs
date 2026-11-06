@@ -30,13 +30,21 @@ public sealed class EngineConfig
 
 /// <summary>
 /// Turns content (drawings, animations, text) into module frames. One shared clock drives both
-/// modules so they stay in sync. It only runs while something actually moves, and it only sends a
-/// frame when the picture changed. Seam-free downward scrolling is handed to the module's firmware,
-/// which then needs no traffic at all.
+/// modules so they stay in sync. The clock is a one-shot timer re-armed for the moment the next
+/// picture is due (a calm animation wakes 8 times a second, a {time} clock once a minute, a still
+/// picture never), capped at <see cref="FramesPerSecond"/>. A frame is only sent when the picture
+/// changed. Seam-free downward scrolling is handed to the module's firmware, which then needs no
+/// traffic at all.
 /// </summary>
 public sealed class AnimationEngine : IDisposable
 {
     public const int FramesPerSecond = 20;
+
+    /// <summary>The CRT look's own frame rate: its rolling bar and flicker don't need more.</summary>
+    public const int CrtFramesPerSecond = 10;
+
+    private static readonly TimeSpan MinTickInterval = TimeSpan.FromSeconds(1.0 / FramesPerSecond);
+    private static readonly TimeSpan CrtTickInterval = TimeSpan.FromSeconds(1.0 / CrtFramesPerSecond);
 
     /// <summary>Hidden virtual columns between the modules in Span mode with the keyboard gap on.</summary>
     public const int KeyboardGapColumns = 6;
@@ -56,11 +64,13 @@ public sealed class AnimationEngine : IDisposable
         [MatrixSide.Right] = new SideState(),
     };
 
+    private readonly DateTimeOffset _epoch;
+    private Source[] _sources = [];
     private EngineConfig? _config;
     private DateTimeOffset _lastTick;
-    private long _tick;
-    private bool _timerRunning;
+    private TimeSpan? _armedFor;
     private bool _forceSend = true;
+    private bool _forcePreview = true;
     private bool _outputEnabled = true;
     private bool _previewEnabled;
     private bool _disposed;
@@ -77,7 +87,7 @@ public sealed class AnimationEngine : IDisposable
         _sink = sink;
         _time = time ?? TimeProvider.System;
         _stats = stats;
-        _lastTick = _time.GetUtcNow();
+        _lastTick = _epoch = _time.GetUtcNow();
         _timer = new Timer(_ => TimerTick(), null, Timeout.Infinite, Timeout.Infinite);
     }
 
@@ -92,8 +102,14 @@ public sealed class AnimationEngine : IDisposable
         {
             lock (_gate)
             {
+                if (_previewEnabled == value)
+                {
+                    return;
+                }
+
+                // Only the previews need a fresh copy; the modules already show the right thing.
                 _previewEnabled = value;
-                _forceSend = true;
+                _forcePreview = true;
                 TickLocked();
             }
         }
@@ -126,10 +142,16 @@ public sealed class AnimationEngine : IDisposable
         }
     }
 
-    /// <summary>True while the clock is ticking (for diagnostics and tests).</summary>
+    /// <summary>True while the clock is armed for another tick (for diagnostics and tests).</summary>
     public bool IsRunning
     {
-        get { lock (_gate) { return _timerRunning; } }
+        get { lock (_gate) { return _armedFor is not null; } }
+    }
+
+    /// <summary>How long until the next tick, or null when the clock is stopped (tests, benchmarks).</summary>
+    internal TimeSpan? NextTickIn
+    {
+        get { lock (_gate) { return _armedFor; } }
     }
 
     /// <summary>Applies new content. Animations keep their state when only speed or effects change.</summary>
@@ -143,13 +165,13 @@ public sealed class AnimationEngine : IDisposable
                 previous[side] = _outputs.TryGetValue(side, out var o) ? o.Source.Key : null;
             }
 
-            var oldSources = _outputs.Values.Select(o => o.Source).Distinct().ToList();
-            BuildOutputs(config, oldSources);
+            BuildOutputs(config, [.. _sources]);
             _config = config;
 
             foreach (var side in Sides)
             {
                 var st = _state[side];
+                st.Dirty = true; // recompute the frame; it's only sent if it actually differs
                 var owner = OwnerContent(config, side);
                 var crtWasOn = st.CrtOn;
                 st.CrtOn = owner.CrtLook;
@@ -166,7 +188,6 @@ public sealed class AnimationEngine : IDisposable
                 }
             }
 
-            _forceSend = true;
             TickLocked();
         }
     }
@@ -196,25 +217,22 @@ public sealed class AnimationEngine : IDisposable
 
     private void TimerTick()
     {
-        if (!Monitor.TryEnter(_gate))
+        // The timer is one-shot and every tick re-arms it, so ticks can't pile up; wait for the
+        // lock rather than skip, or a tick that met a brief lock (a property read) would stop the clock.
+        lock (_gate)
         {
-            return; // previous tick still running; skip rather than queue
-        }
-
-        try
-        {
-            if (!_disposed)
+            try
             {
-                TickLocked();
+                if (!_disposed)
+                {
+                    TickLocked();
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Animation tick failed", ex);
-        }
-        finally
-        {
-            Monitor.Exit(_gate);
+            catch (Exception ex)
+            {
+                Log.Error("Animation tick failed", ex);
+                Arm(MinTickInterval); // keep going rather than freeze
+            }
         }
     }
 
@@ -226,12 +244,13 @@ public sealed class AnimationEngine : IDisposable
         }
 
         var now = _time.GetUtcNow();
-        var dt = Math.Clamp((now - _lastTick).TotalSeconds, 0, 0.5);
-        _lastTick = now;
-        _tick++;
 
-        var changed = new Dictionary<Source, bool>();
-        foreach (var src in _outputs.Values.Select(o => o.Source).Distinct())
+        // Time only flows while the clock runs: content that was paused doesn't jump ahead, and a
+        // tick that comes very late (system busy or suspended) is limited to the planned wait + 0.5 s.
+        var dt = _armedFor is { } planned ? Math.Clamp((now - _lastTick).TotalSeconds, 0, planned.TotalSeconds + 0.5) : 0;
+        _lastTick = now;
+
+        foreach (var src in _sources)
         {
             var c = src.Advance(dt, now) | src.NeedsRender;
             if (c)
@@ -240,10 +259,10 @@ public sealed class AnimationEngine : IDisposable
                 src.NeedsRender = false;
             }
 
-            changed[src] = c;
+            src.ChangedThisTick = c;
         }
 
-        var needsTimer = false;
+        TimeSpan? due = null;
         foreach (var side in Sides)
         {
             var output = _outputs[side];
@@ -252,12 +271,13 @@ public sealed class AnimationEngine : IDisposable
             var offload = src.ModuleScrollable && _config.Link != LinkMode.Span && !st.CrtOn && st.Transition is null;
 
             Frame frame;
-            if (changed[src] || st.LastFrame is null || st.CrtOn || st.Transition is not null || _forceSend)
+            if (src.ChangedThisTick || st.LastFrame is null || st.Dirty || st.CrtOn || st.Transition is not null)
             {
+                st.Dirty = false;
                 frame = src.Canvas.ToFrame(output.Left, output.Top);
                 if (st.CrtOn)
                 {
-                    frame = st.Crt.Apply(frame, _tick, st.CrtIntensity);
+                    frame = st.Crt.Apply(frame, (now - _epoch).TotalSeconds, st.CrtIntensity);
                 }
 
                 if (st.Transition is { } tr)
@@ -286,7 +306,7 @@ public sealed class AnimationEngine : IDisposable
             var frameChanged = st.LastFrame is null || !frame.Equals(st.LastFrame);
             st.LastFrame = frame;
 
-            if (_previewEnabled && (frameChanged || _forceSend))
+            if (_previewEnabled && (frameChanged || _forcePreview))
             {
                 Preview?.Invoke(side, frame);
             }
@@ -295,10 +315,14 @@ public sealed class AnimationEngine : IDisposable
             {
                 if (offload)
                 {
-                    if (!st.Offloaded || _forceSend)
+                    // The module scrolls by itself: only (re)start it for new content or a new speed.
+                    var period = ScrollPeriod(src.Speed);
+                    if (!st.Offloaded || _forceSend || !ReferenceEquals(st.OffloadSource, src) || st.OffloadPeriod != period)
                     {
-                        _sink.Show(side, frame, ScrollPeriod(src.Speed));
+                        _sink.Show(side, frame, period);
                         st.Offloaded = true;
+                        st.OffloadSource = src;
+                        st.OffloadPeriod = period;
                         st.LastSent = frame;
                     }
                 }
@@ -306,35 +330,43 @@ public sealed class AnimationEngine : IDisposable
                 {
                     _sink.Show(side, frame, null);
                     st.Offloaded = false;
+                    st.OffloadSource = null;
                     st.LastSent = frame;
                 }
             }
 
-            var moving = src.Dynamic && (!offload || !_outputEnabled || _previewEnabled);
-            needsTimer |= moving || st.CrtOn || st.Transition is not null;
+            // When is this side's picture next going to change?
+            if (src.Dynamic && (!offload || !_outputEnabled || _previewEnabled))
+            {
+                due = Earliest(due, src.NextDue(now));
+            }
+
+            if (st.CrtOn)
+            {
+                due = Earliest(due, CrtTickInterval);
+            }
+
+            if (st.Transition is not null)
+            {
+                due = Earliest(due, MinTickInterval);
+            }
         }
 
         _forceSend = false;
-        needsTimer &= _outputEnabled || _previewEnabled;
-        SetTimer(needsTimer);
+        _forcePreview = false;
+        Arm(_outputEnabled || _previewEnabled ? due : null);
     }
 
-    private void SetTimer(bool run)
-    {
-        if (run == _timerRunning)
-        {
-            return;
-        }
+    private static TimeSpan? Earliest(TimeSpan? a, TimeSpan? b) =>
+        a is null ? b : b is null ? a : a < b ? a : b;
 
-        _timerRunning = run;
-        var period = TimeSpan.FromMilliseconds(1000.0 / FramesPerSecond);
+    /// <summary>Arms the one-shot timer for the next due picture (never sooner than the frame-rate cap).</summary>
+    private void Arm(TimeSpan? due)
+    {
+        _armedFor = due is { } d ? (d < MinTickInterval ? MinTickInterval : d) : null;
         if (_useTimer)
         {
-            _timer.Change(run ? period : Timeout.InfiniteTimeSpan, run ? period : Timeout.InfiniteTimeSpan);
-        }
-        if (run)
-        {
-            _lastTick = _time.GetUtcNow();
+            _timer.Change(_armedFor ?? Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -371,6 +403,12 @@ public sealed class AnimationEngine : IDisposable
     internal static ushort ScrollPeriod(int speed) => (ushort)Math.Clamp(1000 / Math.Max(1, speed), 20, 2000);
 
     private void BuildOutputs(EngineConfig c, List<Source> reusable)
+    {
+        BuildOutputMap(c, reusable);
+        _sources = [.. _outputs.Values.Select(o => o.Source).Distinct()];
+    }
+
+    private void BuildOutputMap(EngineConfig c, List<Source> reusable)
     {
         Source Make(SideContent content, Frame drawing, int w, int h)
         {
@@ -453,6 +491,14 @@ public sealed class AnimationEngine : IDisposable
         public bool Offloaded { get; set; }
 
         public Transition? Transition { get; set; }
+
+        /// <summary>Content or mapping changed: recompute the frame on the next tick.</summary>
+        public bool Dirty { get; set; } = true;
+
+        /// <summary>The source and speed the module's firmware scroll was started with.</summary>
+        public Source? OffloadSource { get; set; }
+
+        public ushort OffloadPeriod { get; set; }
     }
 }
 
@@ -472,6 +518,9 @@ internal abstract class Source
     public int Speed { get; protected set; }
 
     public bool NeedsRender { get; set; } = true;
+
+    /// <summary>Set by the engine each tick: the picture changed during this tick.</summary>
+    public bool ChangedThisTick { get; set; }
 
     /// <summary>Identity: same key = same source (state kept); differs = rebuilt (and a transition may play).</summary>
     public abstract string Key { get; }
@@ -507,14 +556,25 @@ internal abstract class Source
 
     public abstract void Render();
 
+    /// <summary>Time until the picture changes by itself, or null if it won't (only asked while <see cref="Dynamic"/>).</summary>
+    public virtual TimeSpan? NextDue(DateTimeOffset now) => null;
+
+    /// <summary>Time until the next whole step at the current speed.</summary>
+    protected TimeSpan? StepDue() =>
+        Speed <= 0 ? null : TimeSpan.FromSeconds(Math.Max(0, 1 - _accumulator) / Speed);
+
     /// <summary>Whole steps due after <paramref name="seconds"/> at the current speed (capped to avoid bursts).</summary>
     protected int DueSteps(double seconds)
     {
         _accumulator += seconds * Speed;
-        var steps = (int)Math.Floor(_accumulator);
+
+        // A timer that fires a hair early still counts: otherwise the step would slip a whole tick.
+        var steps = (int)Math.Floor(_accumulator + StepTolerance);
         _accumulator -= steps;
         return Math.Min(steps, 8);
     }
+
+    private const double StepTolerance = 0.05;
 }
 
 internal sealed class DrawingSource : Source
@@ -536,10 +596,9 @@ internal sealed class DrawingSource : Source
 
     private void Copy(Frame drawing)
     {
-        var before = (byte[])Canvas.Data.Clone();
-        drawing.Pixels.CopyTo(Canvas.Data);
-        if (!before.AsSpan().SequenceEqual(Canvas.Data))
+        if (!drawing.Pixels.SequenceEqual(Canvas.Data))
         {
+            drawing.Pixels.CopyTo(Canvas.Data);
             NeedsRender = true;
         }
     }
@@ -590,6 +649,8 @@ internal sealed class AnimationSource : Source
         return steps > 0;
     }
 
+    public override TimeSpan? NextDue(DateTimeOffset now) => StepDue();
+
     public override void Render() => _animation.Draw(Canvas);
 }
 
@@ -598,10 +659,11 @@ internal sealed class TextSource : Source
     private readonly TextSettings _settings;
     private readonly ISystemStats? _stats;
     private readonly bool _hasTokens;
+    private readonly bool _clockOnly;
     private string _expanded = string.Empty;
     private TextPlan _plan;
     private long _offset;
-    private DateTimeOffset _lastTokenCheck;
+    private DateTimeOffset _nextTokenCheck;
 
     public TextSource(SideContent content, int w, int h, ISystemStats? stats, DateTimeOffset now)
         : base(w, h, content.Speed)
@@ -609,7 +671,9 @@ internal sealed class TextSource : Source
         _settings = content.Text.Clone();
         _stats = stats;
         _hasTokens = TextTokens.HasTokens(_settings.Value);
-        _plan = Replan(now);
+        _clockOnly = TextTokens.OnlyClockTokens(_settings.Value);
+        _expanded = Expand(now);
+        _plan = Plan();
     }
 
     public override string Key =>
@@ -626,11 +690,15 @@ internal sealed class TextSource : Source
     public override bool Advance(double seconds, DateTimeOffset now)
     {
         var changed = false;
-        if (_hasTokens && now - _lastTokenCheck >= TimeSpan.FromSeconds(1))
+        if (_hasTokens && now >= _nextTokenCheck)
         {
-            var before = _expanded;
-            _plan = Replan(now);
-            changed = before != _expanded;
+            var expanded = Expand(now);
+            if (expanded != _expanded)
+            {
+                _expanded = expanded;
+                _plan = Plan();
+                changed = true;
+            }
         }
 
         if (_settings.Motion != TextMotion.Static)
@@ -643,12 +711,44 @@ internal sealed class TextSource : Source
         return changed;
     }
 
+    public override TimeSpan? NextDue(DateTimeOffset now)
+    {
+        var step = _settings.Motion != TextMotion.Static ? StepDue() : null;
+        if (!_hasTokens)
+        {
+            return step;
+        }
+
+        var tokens = _nextTokenCheck - now;
+        if (tokens < TimeSpan.Zero)
+        {
+            tokens = TimeSpan.Zero;
+        }
+
+        return step is { } s && s < tokens ? s : tokens;
+    }
+
     public override void Render() => TextRenderer.Draw(_plan, _settings.Motion, _offset, Canvas);
 
-    private TextPlan Replan(DateTimeOffset now)
+    /// <summary>Expands the tokens and schedules the next check: the next minute for {time}/{date}, else 1 s.</summary>
+    private string Expand(DateTimeOffset now)
     {
-        _lastTokenCheck = now;
-        _expanded = TextTokens.Expand(_settings.Value, now.ToLocalTime(), _stats);
+        if (_clockOnly)
+        {
+            var local = now.ToLocalTime();
+            var intoMinute = TimeSpan.FromTicks(local.TimeOfDay.Ticks % TimeSpan.TicksPerMinute);
+            _nextTokenCheck = now + (TimeSpan.FromMinutes(1) - intoMinute) + TimeSpan.FromMilliseconds(20);
+        }
+        else
+        {
+            _nextTokenCheck = now + TimeSpan.FromSeconds(1);
+        }
+
+        return TextTokens.Expand(_settings.Value, now.ToLocalTime(), _stats);
+    }
+
+    private TextPlan Plan()
+    {
         var viewHeight = _settings.Layout == TextLayout.Ticker ? Frame.Height : Canvas.Height;
         return TextRenderer.Plan(_expanded, _settings.Layout, _settings.Font, viewHeight);
     }

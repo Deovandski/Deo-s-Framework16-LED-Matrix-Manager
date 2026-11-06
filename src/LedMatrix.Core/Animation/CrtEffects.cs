@@ -3,47 +3,83 @@ namespace LedMatrix.Core.Animation;
 /// <summary>
 /// "CRT look" for one module: scanlines (odd rows dimmed), a rolling bright bar, phosphor afterglow
 /// (moving things leave short trails) and a slight flicker. Stateful because of the afterglow.
+/// Time-based, so it looks the same at any frame rate (the engine runs it at 10 fps).
 /// </summary>
 public sealed class CrtFilter
 {
+    /// <summary>Rows per second the bright bar rolls down (it then spends a while off-screen).</summary>
+    private const double BarRowsPerSecond = 12;
+
+    /// <summary>The flicker level changes this many times a second.</summary>
+    private const double FlickerPerSecond = 5;
+
+    /// <summary>Afterglow kept per 50 ms at full intensity.</summary>
+    private const double GlowPer50Ms = 0.62;
+
     private readonly Random _rng;
-    private byte[]? _previous;
+    private readonly double[] _previous = new double[Frame.PixelCount];
+    private bool _hasPrevious;
+    private double _lastSeconds;
+    private long _flickerSlot = long.MinValue;
+    private double _flicker = 1;
 
     public CrtFilter(int seed = 7) => _rng = new Random(seed);
 
-    public void Reset() => _previous = null;
+    public void Reset()
+    {
+        _hasPrevious = false;
+        _flickerSlot = long.MinValue;
+    }
 
+    /// <summary>Frame-number form (20 frames per second), kept for tools that render at a fixed rate.</summary>
+    public Frame Apply(Frame input, long tick, int intensity) => Apply(input, tick / 20.0, intensity);
+
+    /// <param name="seconds">A clock in seconds (only differences and the value modulo the bar cycle matter).</param>
     /// <param name="intensity">0..100.</param>
-    public Frame Apply(Frame input, long tick, int intensity)
+    public Frame Apply(Frame input, double seconds, int intensity)
     {
         var k = Math.Clamp(intensity, 0, 100) / 100.0;
-        var barPos = tick * 0.6 % 60; // rolls down, then spends a while off-screen
-        var flicker = 1 - k * 0.08 * _rng.NextDouble();
-        var output = new Frame();
-        var src = input.Pixels;
-        var next = new byte[Frame.PixelCount];
+        var barPos = seconds * BarRowsPerSecond % 60;
 
+        var slot = (long)Math.Floor(seconds * FlickerPerSecond);
+        if (slot != _flickerSlot)
+        {
+            _flickerSlot = slot;
+            _flicker = 1 - k * 0.08 * _rng.NextDouble();
+        }
+
+        // Afterglow fades per unit of time, not per frame.
+        var dt = _hasPrevious ? Math.Clamp(seconds - _lastSeconds, 0.001, 0.5) : 0.05;
+        var glow = Math.Pow(GlowPer50Ms * k, dt / 0.05);
+        _lastSeconds = seconds;
+
+        var src = input.Pixels;
+        var output = new byte[Frame.PixelCount];
         for (var y = 0; y < Frame.Height; y++)
         {
             var scan = y % 2 == 1 ? 1 - 0.45 * k : 1;
             var distance = Math.Abs(y - barPos);
             var bar = distance < 3 ? 1 + 0.6 * k * (1 - distance / 3) : 1;
+            var lift = bar > 1 ? 18 * k : 0;
+            var gain = scan * _flicker * bar;
+            var row = Frame.Width * y;
             for (var x = 0; x < Frame.Width; x++)
             {
-                var i = x + Frame.Width * y;
-                var v = src[i] * scan * flicker * bar + (bar > 1 ? 18 * k : 0);
-                if (_previous is not null)
+                var i = row + x;
+                var v = src[i] * gain + lift;
+                if (_hasPrevious)
                 {
-                    v = Math.Max(v, _previous[i] * 0.62 * k);
+                    v = Math.Max(v, _previous[i] * glow);
                 }
 
-                next[i] = PixelBuffer.ToByte(v);
-                output[x, y] = next[i];
+                var b = PixelBuffer.ToByte(v);
+                output[i] = b;
+                _previous[i] = b;
             }
         }
 
-        _previous = next;
-        return output;
+        _hasPrevious = true;
+        return Frame.Wrap(output);
     }
 }
 

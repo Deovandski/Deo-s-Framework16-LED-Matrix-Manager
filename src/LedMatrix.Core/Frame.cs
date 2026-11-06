@@ -35,6 +35,17 @@ public sealed class Frame : IEquatable<Frame>
 
     public static bool InBounds(int x, int y) => x is >= 0 and < Width && y is >= 0 and < Height;
 
+    /// <summary>Takes ownership of <paramref name="pixels"/> without copying (the caller must not change it afterwards).</summary>
+    internal static Frame Wrap(byte[] pixels)
+    {
+        if (pixels.Length != PixelCount)
+        {
+            throw new ArgumentException($"Expected {PixelCount} pixels, got {pixels.Length}.", nameof(pixels));
+        }
+
+        return new Frame(pixels);
+    }
+
     public static Frame FromPixels(ReadOnlySpan<byte> pixels)
     {
         if (pixels.Length != PixelCount)
@@ -75,6 +86,20 @@ public sealed class Frame : IEquatable<Frame>
     }
 
     public void CopyFrom(Frame other) => other._pixels.CopyTo(_pixels, 0);
+
+    /// <summary>Writes the 34 brightness values of column <paramref name="x"/> into <paramref name="destination"/>.</summary>
+    public void CopyColumn(int x, Span<byte> destination)
+    {
+        if (x is < 0 or >= Width)
+        {
+            throw new ArgumentOutOfRangeException(nameof(x));
+        }
+
+        for (var y = 0; y < Height; y++)
+        {
+            destination[y] = _pixels[x + Width * y];
+        }
+    }
 
     /// <summary>The 34 brightness values of one column, top to bottom.</summary>
     public byte[] GetColumn(int x)

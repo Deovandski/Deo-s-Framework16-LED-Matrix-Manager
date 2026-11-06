@@ -51,15 +51,34 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
         }
     }
 
+    /// <summary>Raised when the Left/Right serial assignment changed (worth saving).</summary>
+    public event EventHandler? RolesChanged;
+
     public void Rescan()
     {
         var modules = DeviceDiscovery.Find();
-        bool changed;
+        bool changed, rolesChanged;
         string? left, right;
+        var old = new List<MatrixDevice>();
+        var added = new List<MatrixDevice>();
         lock (_lock)
         {
+            var before = (_settings.LeftSerial, _settings.RightSerial);
             (left, right) = RoleAssigner.Assign(modules.Select(m => m.SerialNumber).ToList(), _settings);
-            changed = Update(MatrixSide.Left, left, modules) | Update(MatrixSide.Right, right, modules);
+            rolesChanged = before != (_settings.LeftSerial, _settings.RightSerial);
+            changed = Update(MatrixSide.Left, left, modules, old, added) | Update(MatrixSide.Right, right, modules, old, added);
+        }
+
+        // Stopping a device waits for its worker thread, so do it outside the lock: the engine's
+        // clock thread must never block on it. New devices start after the old ones let go of their ports.
+        DisposeAll(old);
+        foreach (var d in added)
+        {
+            d.Start();
+        }
+        if (rolesChanged)
+        {
+            RolesChanged?.Invoke(this, EventArgs.Empty);
         }
 
         Log.Info($"Rescan: {modules.Count} module(s) found. Left={left ?? "-"} Right={right ?? "-"}");
@@ -71,14 +90,16 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
 
     public void Swap()
     {
+        var old = new List<MatrixDevice>();
         lock (_lock)
         {
             RoleAssigner.Swap(_settings);
             // Rebuild both sides with the swapped serials; the content stays on its side of the screen.
-            DisposeDevice(MatrixSide.Left);
-            DisposeDevice(MatrixSide.Right);
+            Detach(MatrixSide.Left, old);
+            Detach(MatrixSide.Right, old);
         }
 
+        DisposeAll(old);
         Rescan();
         DevicesChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -90,9 +111,7 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
         {
             _frames[side] = frame;
             _scroll[side] = moduleScrollPeriodMs;
-            var device = _devices[side];
-            device?.SetScroll(moduleScrollPeriodMs);
-            device?.SetFrame(frame);
+            _devices[side]?.SetContent(frame, moduleScrollPeriodMs);
         }
     }
 
@@ -140,14 +159,31 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
 
     public void Dispose()
     {
+        var old = new List<MatrixDevice>();
         lock (_lock)
         {
-            DisposeDevice(MatrixSide.Left);
-            DisposeDevice(MatrixSide.Right);
+            Detach(MatrixSide.Left, old);
+            Detach(MatrixSide.Right, old);
+        }
+
+        DisposeAll(old);
+    }
+
+    private static void DisposeAll(List<MatrixDevice> devices)
+    {
+        foreach (var d in devices)
+        {
+            d.Dispose();
         }
     }
 
-    private bool Update(MatrixSide side, string? serial, IReadOnlyList<DiscoveredModule> modules)
+    private static ISerialTransport CreateTransport(string portName) =>
+        string.Equals(Environment.GetEnvironmentVariable("LEDMATRIX_SERIAL"), "dotnet", StringComparison.OrdinalIgnoreCase)
+            ? new SerialPortTransport(portName)
+            : new Win32SerialTransport(portName);
+
+    private bool Update(
+        MatrixSide side, string? serial, IReadOnlyList<DiscoveredModule> modules, List<MatrixDevice> old, List<MatrixDevice> added)
     {
         var current = _devices[side];
         var module = serial is null ? null : modules.FirstOrDefault(m => m.SerialNumber == serial);
@@ -163,24 +199,24 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
             return false;
         }
 
-        DisposeDevice(side);
+        Detach(side, old);
         if (module is null)
         {
             return true;
         }
 
-        var device = new MatrixDevice(module.SerialNumber, new SerialPortTransport(module.PortName));
+        var device = new MatrixDevice(module.SerialNumber, CreateTransport(module.PortName));
         device.SetBrightness(_settings.Brightness);
-        device.SetScroll(_scroll[side]);
-        device.SetFrame(_frames[side]);
+        device.SetContent(_frames[side], _scroll[side]);
         device.SetAwake(_awake);
         device.StatusChanged += OnDeviceStatusChanged;
         _devices[side] = device;
-        device.Start();
+        added.Add(device);
         return true;
     }
 
-    private void DisposeDevice(MatrixSide side)
+    /// <summary>Takes the device off its side (under the lock); the caller disposes it after releasing the lock.</summary>
+    private void Detach(MatrixSide side, List<MatrixDevice> old)
     {
         var d = _devices[side];
         if (d is null)
@@ -190,7 +226,7 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
 
         _devices[side] = null;
         d.StatusChanged -= OnDeviceStatusChanged;
-        d.Dispose();
+        old.Add(d);
     }
 
     private void OnDeviceStatusChanged(object? sender, EventArgs e) =>
