@@ -35,6 +35,8 @@ public sealed class MatrixDevice : IDisposable
     private bool _frameDirty = true;
     private bool _brightnessDirty = true;
     private bool _identifyRequested;
+    private ushort? _scrollPeriod;
+    private bool _scrollDirty;
 
     // Worker-only state
     private bool _sleepSent;
@@ -106,6 +108,26 @@ public sealed class MatrixDevice : IDisposable
         _signal.Set();
     }
 
+    /// <summary>
+    /// Firmware scroll: non-null makes the module scroll the current frame down by itself, one row every
+    /// N ms, with no further traffic. Null stops it (needed before streaming app-driven frames).
+    /// </summary>
+    public void SetScroll(ushort? periodMs)
+    {
+        lock (_gate)
+        {
+            if (_scrollPeriod == periodMs)
+            {
+                return;
+            }
+
+            _scrollPeriod = periodMs;
+            _scrollDirty = true;
+        }
+
+        _signal.Set();
+    }
+
     /// <summary>Gate for all traffic. False = fade out and stay silent; true = wake and restore content.</summary>
     public void SetAwake(bool awake)
     {
@@ -135,6 +157,7 @@ public sealed class MatrixDevice : IDisposable
         {
             _frameDirty = true;
             _brightnessDirty = true;
+            _scrollDirty = true;
         }
 
         _needsWake = true;
@@ -233,6 +256,7 @@ public sealed class MatrixDevice : IDisposable
         {
             _frameDirty = true;
             _brightnessDirty = true;
+            _scrollDirty = true;
         }
 
         SetStatus(DeviceStatus.Connected);
@@ -272,20 +296,24 @@ public sealed class MatrixDevice : IDisposable
 
     private void Sync()
     {
-        bool awake, identify, frameDirty, brightnessDirty;
+        bool awake, identify, frameDirty, brightnessDirty, scrollDirty;
         Frame frame;
         byte brightness;
+        ushort? scroll;
         lock (_gate)
         {
             awake = _awake;
             identify = _identifyRequested;
             frameDirty = _frameDirty;
             brightnessDirty = _brightnessDirty;
+            scrollDirty = _scrollDirty;
             frame = _frame;
             brightness = _brightness;
+            scroll = _scrollPeriod;
             _identifyRequested = false;
             _frameDirty = false;
             _brightnessDirty = false;
+            _scrollDirty = false;
         }
 
         if (!awake)
@@ -298,12 +326,13 @@ public sealed class MatrixDevice : IDisposable
             }
 
             // Remember that content changed while asleep, so it is sent on wake.
-            if (frameDirty || brightnessDirty)
+            if (frameDirty || brightnessDirty || scrollDirty)
             {
                 lock (_gate)
                 {
                     _frameDirty |= frameDirty;
                     _brightnessDirty |= brightnessDirty;
+                    _scrollDirty |= scrollDirty;
                 }
             }
 
@@ -326,15 +355,28 @@ public sealed class MatrixDevice : IDisposable
             _sleepSent = false;
             frameDirty = true;
             brightnessDirty = true;
+            scrollDirty = true;
         }
 
         SetStatus(DeviceStatus.Connected);
 
         if (identify)
         {
+            if (scroll is not null)
+            {
+                Write(Protocol.SetAnimate(false));
+            }
+
             RunIdentify(brightness);
             frameDirty = true;
             brightnessDirty = true;
+            scrollDirty = true;
+        }
+
+        // Stop the firmware scroll before sending a new picture, so it isn't rotated mid-update.
+        if (scrollDirty && scroll is null)
+        {
+            Write(Protocol.SetAnimate(false));
         }
 
         if (brightnessDirty)
@@ -348,6 +390,13 @@ public sealed class MatrixDevice : IDisposable
             {
                 Write(cmd);
             }
+        }
+
+        // Start the firmware scroll after the picture is in place.
+        if (scrollDirty && scroll is { } period)
+        {
+            Write(Protocol.SetAnimationPeriod(period));
+            Write(Protocol.SetAnimate(true));
         }
 
         if (_time.GetUtcNow() - _lastWrite >= KeepAliveInterval)

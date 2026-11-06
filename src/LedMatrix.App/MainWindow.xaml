@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:LedMatrix.App.Controls"
         Title="Deo's LED Matrix Manager"
         Icon="/Assets/app.ico"
-        Width="980" Height="840" MinWidth="780" MinHeight="640"
+        Width="1040" Height="900" MinWidth="820" MinHeight="680"
         WindowStartupLocation="CenterScreen">
   <Grid>
     <Grid.ColumnDefinitions>
@@ -82,6 +82,12 @@
         <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
                    Text="Left-click to draw. Right-click (or Ctrl+click) to erase. Click and drag to paint. With the keyboard: arrows to move, Space to toggle." />
 
+        <!-- Effects -->
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Effects" />
+        <CheckBox x:Name="CrtTransitionsCheck" Content="CRT power off/on when the content changes" Click="CrtTransitions_Click" />
+        <TextBlock Style="{StaticResource Caption}" Margin="28,2,0,0"
+                   Text="Turning the LEDs off (lid closed, screen off) always uses the normal fade." />
+
         <!-- Automatic on/off -->
         <TextBlock Style="{StaticResource SectionHeader}" Text="Automatic on/off" />
         <CheckBox x:Name="AutoOffCheck" Content="Turn LEDs off when the laptop screen is off" Click="AutoOff_Click" />
@@ -93,6 +99,10 @@
         </StackPanel>
         <TextBlock x:Name="ScreenStateText" Style="{StaticResource Caption}" Margin="0,8,0,0" />
         <CheckBox x:Name="StartupCheck" Content="Start with Windows" Margin="0,16,0,0" Click="Startup_Click" />
+        <TextBlock x:Name="StartupManagedText" Margin="0,16,0,0" TextWrapping="Wrap" Visibility="Collapsed">
+          <Run Text="Starting with Windows is set in " />
+          <Hyperlink Click="StartupSettings_Click">Settings › Apps › Startup</Hyperlink>
+        </TextBlock>
 
         <!-- Footer -->
         <TextBlock Style="{StaticResource Caption}" Margin="0,24,0,0">
@@ -109,33 +119,37 @@
     <Grid Grid.Column="1" Margin="8,20,24,24">
       <Grid.ColumnDefinitions>
         <ColumnDefinition />
+        <ColumnDefinition Width="16" />
         <ColumnDefinition />
       </Grid.ColumnDefinitions>
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <TextBlock x:Name="LeftHeader" Grid.Row="0" Grid.Column="0" Text="Left" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
-      <TextBlock x:Name="RightHeader" Grid.Row="0" Grid.Column="1" Text="Right" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+      <WrapPanel Grid.Row="0" Grid.ColumnSpan="3" HorizontalAlignment="Center" Margin="0,0,0,12">
+        <TextBlock Text="Both modules:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0" />
+        <RadioButton x:Name="LinkIndependent" Content="Independent" GroupName="Link" Checked="Link_Checked" Margin="0,0,14,0"
+                     ToolTip="Each module shows its own content" />
+        <RadioButton x:Name="LinkMirror" Content="Mirror" GroupName="Link" Checked="Link_Checked" Margin="0,0,14,0"
+                     ToolTip="The left module's content on both" />
+        <RadioButton x:Name="LinkSpan" Content="Span" GroupName="Link" Checked="Link_Checked" Margin="0,0,14,0"
+                     ToolTip="The left module's content stretched across both, edge to edge" />
+        <CheckBox x:Name="GapCheck" Content="Keyboard gap" Click="Gap_Click" VerticalAlignment="Center"
+                  ToolTip="In Span mode, things pass behind the keyboard for a moment instead of jumping across" />
+      </WrapPanel>
 
-      <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,4">
-        <ComboBox x:Name="LeftPattern" Width="170" Tag="Left" SelectionChanged="Pattern_Changed"
-                  AutomationProperties.Name="Left pattern" ToolTip="Fill the left module with a pattern" />
-        <Button Content="Clear" Tag="Left" Click="Clear_Click" Margin="6,0,0,0" />
-        <Button Content="Invert" Tag="Left" Click="Invert_Click" Margin="6,0,0,0" />
-      </StackPanel>
-      <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,4">
-        <ComboBox x:Name="RightPattern" Width="170" Tag="Right" SelectionChanged="Pattern_Changed"
-                  AutomationProperties.Name="Right pattern" ToolTip="Fill the right module with a pattern" />
-        <Button Content="Clear" Tag="Right" Click="Clear_Click" Margin="6,0,0,0" />
-        <Button Content="Invert" Tag="Right" Click="Invert_Click" Margin="6,0,0,0" />
-      </StackPanel>
+      <TextBlock x:Name="LeftHeader" Grid.Row="1" Grid.Column="0" Text="Left" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+      <TextBlock x:Name="RightHeader" Grid.Row="1" Grid.Column="2" Text="Right" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
 
-      <controls:LedGrid x:Name="LeftGrid" Grid.Row="2" Grid.Column="0" Margin="8"
+      <controls:SideContentPanel x:Name="LeftPanel" Grid.Row="2" Grid.Column="0" Side="Left" Margin="0,8,0,4" />
+      <controls:SideContentPanel x:Name="RightPanel" Grid.Row="2" Grid.Column="2" Side="Right" Margin="0,8,0,4" />
+
+      <controls:LedGrid x:Name="LeftGrid" Grid.Row="3" Grid.Column="0" Margin="0,8,0,0"
                         AutomationProperties.Name="Left LED matrix, 9 by 34" />
-      <controls:LedGrid x:Name="RightGrid" Grid.Row="2" Grid.Column="1" Margin="8"
+      <controls:LedGrid x:Name="RightGrid" Grid.Row="3" Grid.Column="2" Margin="0,8,0,0"
                         AutomationProperties.Name="Right LED matrix, 9 by 34" />
     </Grid>
   </Grid>

@@ -26,3 +26,6 @@ Desktop.ini
 
 # Local scratch
 .claude-access-test.txt
+
+# Microsoft Store identity (Partner Center > Product identity). Copy store-identity.example.json.
+packaging/store-identity.json

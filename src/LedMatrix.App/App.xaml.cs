@@ -147,9 +147,16 @@ public partial class App : Application
         menu.Items.Add(_offItem);
         menu.Items.Add(new Separator());
 
-        var startupItem = new MenuItem { Header = "Start with Windows", IsCheckable = true };
+        var managed = StartupRegistration.ManagedByWindows;
+        var startupItem = new MenuItem { Header = managed ? "Startup settings…" : "Start with Windows", IsCheckable = !managed };
         startupItem.Click += (_, _) =>
         {
+            if (managed)
+            {
+                StartupRegistration.OpenWindowsStartupSettings();
+                return;
+            }
+
             StartupRegistration.SetEnabled(startupItem.IsChecked);
             RefreshTrayMenu();
         };
@@ -181,7 +188,7 @@ public partial class App : Application
         _autoItem!.IsChecked = mode == LedOverride.Auto;
         _onItem!.IsChecked = mode == LedOverride.AlwaysOn;
         _offItem!.IsChecked = mode == LedOverride.AlwaysOff;
-        _startupItem!.IsChecked = StartupRegistration.IsEnabled();
+        _startupItem!.IsChecked = !StartupRegistration.ManagedByWindows && StartupRegistration.IsEnabled();
     }
 
     private void UpdateTray()

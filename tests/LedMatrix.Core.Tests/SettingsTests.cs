@@ -44,11 +44,50 @@ public class SettingsTests
         try
         {
             var path = Path.Combine(dir, "settings.json");
-            Assert.Equal(100, SettingsStore.Load(path).Brightness);
+            Assert.Equal(AppSettings.DefaultBrightness, SettingsStore.Load(path).Brightness);
 
             File.WriteAllText(path, "{ not json");
-            Assert.Equal(100, SettingsStore.Load(path).Brightness);
+            Assert.Equal(AppSettings.DefaultBrightness, SettingsStore.Load(path).Brightness);
             Assert.True(File.Exists(path + ".corrupt"));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Default_brightness_is_39_percent()
+    {
+        // Hatsune Miku easter egg: 39 = "mi-ku".
+        Assert.Equal(39, (int)Math.Round(new AppSettings().Brightness / 255.0 * 100));
+    }
+
+    [Fact]
+    public void Content_settings_round_trip_and_old_files_get_defaults()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"ledmatrix-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "settings.json");
+            var s = new AppSettings { Link = LedMatrix.Core.Animation.LinkMode.Span, KeyboardGap = true };
+            s.LeftContent.Kind = LedMatrix.Core.Animation.ContentKind.Text;
+            s.LeftContent.Text.Value = "MIKU";
+            SettingsStore.Save(path, s);
+            var loaded = SettingsStore.Load(path);
+            Assert.Equal(LedMatrix.Core.Animation.LinkMode.Span, loaded.Link);
+            Assert.True(loaded.KeyboardGap);
+            Assert.Equal("MIKU", loaded.LeftContent.Text.Value);
+
+            // A v1 settings file (no content fields) loads with the new defaults.
+            File.WriteAllText(path, "{\"SchemaVersion\":1,\"Brightness\":100}");
+            var old = SettingsStore.Load(path);
+            Assert.Equal(100, old.Brightness);
+            Assert.Equal(LedMatrix.Core.Animation.ContentKind.Drawing, old.LeftContent.Kind);
+            Assert.Equal(LedMatrix.Core.Animation.LinkMode.Independent, old.Link);
+            Assert.False(old.KeyboardGap);
+            Assert.Equal(LedMatrix.Core.Animation.SideContent.DefaultSpeed, old.RightContent.Speed);
         }
         finally
         {

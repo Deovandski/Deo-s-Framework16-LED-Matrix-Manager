@@ -60,6 +60,7 @@ What's where:
 | `src/LedMatrix.Core` | Protocol encoding, frames, patterns, the per-module worker (`MatrixDevice`), the on/off rules (`ScreenPolicy`) and settings. Cross-platform, with no Windows code. |
 | `src/LedMatrix.App` | WPF app: tray icon, main window, LED grid editor, module detection, screen and power monitoring, start with Windows. |
 | `tests/LedMatrix.Core.Tests` | xUnit tests for Core, using a fake serial port and a fake clock, so no hardware is needed. |
+| `tools/FrameDump` + `tools/make_gifs.py` | Render the README GIFs from the real animation engine (see below). |
 
 ### Debugging the screen auto on/off
 
@@ -68,6 +69,15 @@ What's where:
 - Easy triggers: **Win+P** (PC screen only, Duplicate, Extend, Second screen only), closing the lid while docked, and `powercfg /change monitor-timeout-ac 1` to test screen timeout quickly. Put your normal timeout back afterwards.
 - Closing the lid puts the PC to sleep unless an external monitor is attached or *"When I close the lid"* is set to **Do nothing** in Power Options.
 - Turn on the module's **DIP1** switch to see *why* the firmware went to sleep (`SLP#`, `USB`, `CMD`).
+
+### Regenerating the README GIFs
+
+After changing an animation, re-render the GIFs in `docs/media` (needs Python with Pillow: `pip install pillow`):
+
+```powershell
+dotnet run --project tools\FrameDump -- artifacts\frames
+python tools\make_gifs.py artifacts\frames docs\media
+```
 
 ### Settings file
 

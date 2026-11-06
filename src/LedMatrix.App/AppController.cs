@@ -3,12 +3,13 @@ using System.Windows.Threading;
 using LedMatrix.App.Interop;
 using LedMatrix.App.Services;
 using LedMatrix.Core;
+using LedMatrix.Core.Animation;
 using Frame = LedMatrix.Core.Frame;
 
 namespace LedMatrix.App;
 
 /// <summary>
-/// Glue between settings, the LED modules and the screen monitor. UI-thread only.
+/// Glue between settings, the animation engine, the LED modules and the screen monitor. UI-thread only.
 /// Owns the single decision "should the LEDs be on right now?".
 /// </summary>
 internal sealed class AppController : IDisposable
@@ -16,14 +17,17 @@ internal sealed class AppController : IDisposable
     public static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DeoLedMatrixManager", "settings.json");
 
+    private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _rescanTimer;
 
     public AppController(MessageWindow window, Dispatcher dispatcher)
     {
+        _dispatcher = dispatcher;
         Settings = SettingsStore.Load(SettingsPath);
-
         Devices = new DeviceManager(Settings, dispatcher);
+        Engine = new AnimationEngine(Devices, stats: new SystemStats());
+        Engine.Preview += (side, frame) => _dispatcher.InvokeAsync(() => PreviewFrame?.Invoke(side, frame));
 
         _saveTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromSeconds(1) };
         _saveTimer.Tick += (_, _) => SaveNow();
@@ -53,12 +57,15 @@ internal sealed class AppController : IDisposable
         };
 
         ApplyPower();
+        ConfigureEngine();
         Devices.Rescan();
     }
 
     public AppSettings Settings { get; }
 
     public DeviceManager Devices { get; }
+
+    public AnimationEngine Engine { get; }
 
     public ScreenStateMonitor Screen { get; }
 
@@ -68,6 +75,16 @@ internal sealed class AppController : IDisposable
 
     /// <summary>Raised on the UI thread when anything shown in the UI or tray changes.</summary>
     public event EventHandler? StateChanged;
+
+    /// <summary>Raised on the UI thread with each frame shown on a module (only while previews are enabled).</summary>
+    public event Action<MatrixSide, Frame>? PreviewFrame;
+
+    /// <summary>Set while the main window is open, so its grids animate.</summary>
+    public bool PreviewEnabled
+    {
+        get => Engine.PreviewEnabled;
+        set => Engine.PreviewEnabled = value;
+    }
 
     public string DeviceName(MatrixSide side)
     {
@@ -99,10 +116,47 @@ internal sealed class AppController : IDisposable
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetFrame(MatrixSide side, Frame frame)
+    /// <summary>Stores a hand-drawn (or pattern) picture for a module.</summary>
+    public void SetDrawing(MatrixSide side, Frame frame)
     {
-        Devices.SetFrame(side, frame);
         Settings.SetFrame(side, frame);
+        ConfigureEngine();
+        SaveSoon();
+    }
+
+    /// <summary>Changes what a module shows (drawing, animation, text and their options).</summary>
+    public void UpdateContent(MatrixSide side, Action<SideContent> change)
+    {
+        change(Settings.GetContent(side));
+        ConfigureEngine();
+        SaveSoon();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetLink(LinkMode link)
+    {
+        if (Settings.Link == link)
+        {
+            return;
+        }
+
+        Settings.Link = link;
+        ConfigureEngine();
+        SaveSoon();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetKeyboardGap(bool gap)
+    {
+        Settings.KeyboardGap = gap;
+        ConfigureEngine();
+        SaveSoon();
+    }
+
+    public void SetCrtTransitions(bool on)
+    {
+        Settings.CrtTransitions = on;
+        ConfigureEngine();
         SaveSoon();
     }
 
@@ -168,9 +222,21 @@ internal sealed class AppController : IDisposable
     {
         _rescanTimer.Stop();
         SaveNow();
+        Engine.Dispose();
         Screen.Dispose();
         Devices.Dispose();
     }
+
+    private void ConfigureEngine() => Engine.Configure(new EngineConfig
+    {
+        Link = Settings.Link,
+        KeyboardGap = Settings.KeyboardGap,
+        CrtTransitions = Settings.CrtTransitions,
+        Left = Settings.LeftContent.Clone(),
+        Right = Settings.RightContent.Clone(),
+        LeftDrawing = Settings.GetFrame(MatrixSide.Left),
+        RightDrawing = Settings.GetFrame(MatrixSide.Right),
+    });
 
     private void ScheduleRescan(TimeSpan delay)
     {
@@ -188,7 +254,11 @@ internal sealed class AppController : IDisposable
         }
 
         OffReason = reason;
-        Devices.SetAwake(reason == LedOffReason.None);
+        var on = reason == LedOffReason.None;
+
+        // Turning off always wins, whatever is playing: the engine stops sending and the modules fade out.
+        Engine.OutputEnabled = on;
+        Devices.SetAwake(on);
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 }

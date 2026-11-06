@@ -71,6 +71,10 @@ public static class Protocol
 
     public static byte[] GetVersion() => Command(CommandId.Version);
 
+    /// <summary>Firmware scroll speed: one row every <paramref name="milliseconds"/> ms (little-endian u16).</summary>
+    public static byte[] SetAnimationPeriod(ushort milliseconds) =>
+        Command(CommandId.AnimationPeriod, (byte)(milliseconds & 0xFF), (byte)(milliseconds >> 8));
+
     public static byte[] ShowFirmwarePattern(FirmwarePattern pattern) => Command(CommandId.Pattern, (byte)pattern);
 
     public static byte[] ShowPercentage(byte percent) =>

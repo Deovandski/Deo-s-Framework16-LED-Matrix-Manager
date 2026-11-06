@@ -23,7 +23,8 @@ public sealed class MatrixDeviceTests : IDisposable
 
         Assert.Equal(DeviceStatus.Connected, dev.Status);
         Assert.Equal(new FirmwareVersion(0, 2, 0, false), dev.Version);
-        Assert.Equal(new List<Protocol.CommandId> { Cmd.Version, Cmd.Sleep, Cmd.Brightness, Cmd.DrawBw }, _port.Ids());
+        // Animate(false) clears any firmware scroll another tool may have left running.
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.Version, Cmd.Sleep, Cmd.Animate, Cmd.Brightness, Cmd.DrawBw }, _port.Ids());
         Assert.Equal(new byte[] { 0x32, 0xAC, 0x03, 0x00 }, _port.Writes[1]);
     }
 
@@ -52,8 +53,9 @@ public sealed class MatrixDeviceTests : IDisposable
         Assert.Equal(Cmd.Version, ids[0]);
         Assert.Equal(Cmd.Sleep, ids[1]);
         Assert.Equal(0, _port.Writes[1][3]);
-        Assert.Equal(Cmd.Brightness, ids[2]);
-        Assert.Equal(42, _port.Writes[2][3]);
+        Assert.Equal(Cmd.Animate, ids[2]);
+        Assert.Equal(Cmd.Brightness, ids[3]);
+        Assert.Equal(42, _port.Writes[3][3]);
         Assert.Equal(9, ids.Count(i => i == Cmd.StageColumn));
         Assert.Equal(Cmd.FlushColumns, ids[^1]);
     }
@@ -88,6 +90,29 @@ public sealed class MatrixDeviceTests : IDisposable
 
         Assert.Single(_port.Writes);
         Assert.All(_port.Writes[0][3..], b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void Firmware_scroll_sends_picture_first_then_period_and_animate()
+    {
+        var dev = NewDevice();
+        dev.RunOnce();
+        _port.Writes.Clear();
+
+        dev.SetFrame(Patterns.Find("Checkerboard")!.Create());
+        dev.SetScroll(125);
+        dev.RunOnce();
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.DrawBw, Cmd.AnimationPeriod, Cmd.Animate }, _port.Ids());
+        Assert.Equal(new byte[] { 0x32, 0xAC, 0x1C, 125, 0 }, _port.Writes[1]);
+        Assert.Equal(1, _port.Writes[2][3]);
+
+        // Going back to app-driven frames stops the scroll before the new picture.
+        _port.Writes.Clear();
+        dev.SetScroll(null);
+        dev.SetFrame(new Frame());
+        dev.RunOnce();
+        Assert.Equal(new List<Protocol.CommandId> { Cmd.Animate, Cmd.DrawBw }, _port.Ids());
+        Assert.Equal(0, _port.Writes[0][3]);
     }
 
     [Fact]

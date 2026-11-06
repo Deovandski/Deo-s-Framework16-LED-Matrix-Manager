@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest template for the Microsoft Store package.
+  tools/Build-StorePackage.ps1 fills in the {{...}} values. The Store identity comes from
+  packaging/store-identity.json (git-ignored) or from environment variables in CI; it is never
+  committed. Without it, a local-test identity is used.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap10 desktop rescap">
+
+  <Identity Name="{{IdentityName}}" Publisher="{{Publisher}}" Version="{{Version}}" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>{{DisplayName}}</DisplayName>
+    <PublisherDisplayName>{{PublisherDisplayName}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <!-- The app as people open it from Start: shows the window. -->
+    <Application Id="App" Executable="DeoLedMatrixManager.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="{{DisplayName}}"
+        Description="Patterns, animations and text for the LED Matrix modules, with automatic off when the laptop screen is off."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+    </Application>
+
+    <!--
+      The same program started at sign-in, straight to the tray. MSIX startup tasks can't pass
+      arguments, so this hidden second entry (no Start menu tile) adds "background" for them.
+      People switch it on or off in Settings > Apps > Startup.
+    -->
+    <Application Id="Startup" Executable="DeoLedMatrixManager.exe" EntryPoint="Windows.FullTrustApplication"
+                 uap10:Parameters="--background">
+      <uap:VisualElements
+        DisplayName="Deo's LED Matrix Manager (startup)"
+        Description="Starts Deo's LED Matrix Manager in the tray when you sign in."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        AppListEntry="none" />
+      <Extensions>
+        <desktop:Extension Category="windows.startupTask">
+          <desktop:StartupTask TaskId="DeoLedMatrixManagerStartup" Enabled="true" DisplayName="{{DisplayName}}" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- A normal desktop app: talks to the modules over USB serial and watches power/display events. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using LedMatrix.Core.Animation;
 
 namespace LedMatrix.Core;
 
@@ -12,9 +13,12 @@ public enum MatrixSide
 /// <summary>Persisted user settings (%AppData%\DeoLedMatrixManager\settings.json).</summary>
 public sealed class AppSettings
 {
-    public int SchemaVersion { get; set; } = 1;
+    /// <summary>39% by default (a Hatsune Miku easter egg: 39 = "mi-ku").</summary>
+    public const byte DefaultBrightness = 99; // 99 / 255 = 38.8% -> shown as 39%
 
-    public byte Brightness { get; set; } = 100;
+    public int SchemaVersion { get; set; } = 2;
+
+    public byte Brightness { get; set; } = DefaultBrightness;
 
     public byte BrushBrightness { get; set; } = 255;
 
@@ -36,6 +40,21 @@ public sealed class AppSettings
     public string? RightFrame { get; set; }
 
     public bool FirstRunCompleted { get; set; }
+
+    /// <summary>What each module shows (drawing, animation or text).</summary>
+    public SideContent LeftContent { get; set; } = new();
+
+    public SideContent RightContent { get; set; } = new();
+
+    public LinkMode Link { get; set; } = LinkMode.Independent;
+
+    /// <summary>Span mode: hide a few virtual columns between the modules (off = edge to edge).</summary>
+    public bool KeyboardGap { get; set; }
+
+    /// <summary>Play the CRT power off/on effect when the content changes.</summary>
+    public bool CrtTransitions { get; set; }
+
+    public SideContent GetContent(MatrixSide side) => side == MatrixSide.Left ? LeftContent : RightContent;
 
     public string? GetSerial(MatrixSide side) => side == MatrixSide.Left ? LeftSerial : RightSerial;
 
@@ -84,6 +103,10 @@ public static class SettingsStore
                 if (settings is not null)
                 {
                     settings.AutoOff ??= new AutoOffOptions();
+                    settings.LeftContent ??= new SideContent();
+                    settings.RightContent ??= new SideContent();
+                    settings.LeftContent.Text ??= new TextSettings();
+                    settings.RightContent.Text ??= new TextSettings();
                     settings.DeviceNames = new Dictionary<string, string>(
                         settings.DeviceNames ?? [], StringComparer.OrdinalIgnoreCase);
                     return settings;

@@ -63,6 +63,13 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    // ---- Package identity (Microsoft Store / MSIX) ----
+
+    public const int APPMODEL_ERROR_NO_PACKAGE = 15700;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    public static extern int GetCurrentPackageFamilyName(ref uint packageFamilyNameLength, [Out] char[]? packageFamilyName);
+
     // ---- Display configuration (QueryDisplayConfig) ----
 
     public const uint QDC_ONLY_ACTIVE_PATHS = 0x00000002;

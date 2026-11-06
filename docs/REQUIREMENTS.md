@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.2: decisions confirmed (see §8) |
+| Status | Document v0.3: animations, text and CRT effects added in app v0.2 (§4.7) |
 | Owner | Deovandski |
 | Last updated | 2026-11-04 |
 | Related | [DEV-SETUP.md](DEV-SETUP.md), [PROTOCOL.md](PROTOCOL.md) |
@@ -83,7 +83,7 @@ Priority: **M** = Must (v1), **S** = Should (v1 if time allows), **C** = Could (
 | ID | Requirement | Pri |
 |---|---|---|
 | FR-30 | Firmware patterns: Gradient, Double gradient, ZigZag, Full brightness, "LOTUS" (both directions), Percentage (0–100). | M |
-| FR-31 | Global brightness slider (0–255, shown as %), saved for each module or for the whole group. | M |
+| FR-31 | Global brightness slider (0–255, shown as %), saved for each module or for the whole group. **Default 39%** (a Hatsune Miku easter egg). | M |
 | FR-32 | Vertical scroll (firmware `Animate`) on and off. | M |
 | FR-33 | App-driven animations rendered on the PC: breathing, blink, clock (HH:MM), scrolling text, battery %, CPU and RAM meters, and a random EQ. | S |
 | FR-34 | Simple animation player: a list of frames with a delay per frame (default 100 ms) and looping. | S |
@@ -104,6 +104,26 @@ The main window follows the official web app's layout, with Fluent styling:
 - **Drawing**: left mouse draws, right mouse (or Ctrl+left) erases, click and drag paints. Changes show on the hardware immediately.
 - **Pattern list**: the web app's patterns (Blank, Full, Checkerboard ×4, Diagonal lines ×4, Every 2nd/3rd row/col, Diamond, Scatter 50%), plus greyscale Gradient, Double gradient and ZigZag, and Percentage.
 - **Differences from the web app**: modules are detected automatically (no "Connect" dialog), the **Bootloader** button is left out (it's dangerous), and greyscale drawing is supported.
+
+### 4.7 Animations, text and CRT effects (v0.2)
+
+Specified in [proposals/ANIMATION-TEXT-CRT.md](proposals/ANIMATION-TEXT-CRT.md) (accepted). Summary:
+
+| ID | Requirement | Pri | Status |
+|---|---|---|---|
+| FR-60 | Animation engine: one shared clock, modules in sync, latest frame wins, no output while the LEDs are off, clock stopped when nothing moves | M | Done |
+| FR-61 | Built-in animations loop exactly (enforced by a unit test) | M | Done |
+| FR-62 | Automatic firmware offload for seam-free downward scrolls | M | Done |
+| FR-63 | 16 ready-made animations with speed (default: calm, 8 steps/s) and a "Reverse direction" option | M | Done |
+| FR-64 | Text: Stacked (default), Sideways and Ticker layouts; auto-fit; Static and Slide motions; the gap between repeats is automatic (short text wraps around the screen) | M | Done |
+| FR-65 | Text size: Auto-fit, Full size (5×7) or ½ size (3×5) (Bold later) | M | Partly |
+| FR-66 | Live tokens `{time}`, `{date}`, `{battery}`, `{cpu}`, `{ram}` | S | Done |
+| FR-67 | CRT power off/on when the content changes (optional; never replaces the fade on lid close) | S | Done |
+| FR-68 | CRT look filter with intensity | S | Done |
+| FR-69 | "No signal" animation | S | Done |
+| FR-70 | Wrap preview in the drawing editor | S | Later |
+| FR-71 | Independent / Mirror / Span, with an optional keyboard gap (default edge to edge) | S | Done |
+| FR-72 | Frame-rate self-test | S | Later |
 
 ### 4.5 Custom drawing
 

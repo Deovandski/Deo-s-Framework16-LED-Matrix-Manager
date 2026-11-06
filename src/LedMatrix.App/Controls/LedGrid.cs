@@ -27,6 +27,7 @@ public sealed class LedGrid : FrameworkElement
     private (int X, int Y) _cursor = (Frame.Width / 2, Frame.Height / 2);
     private byte _paintValue;
     private bool _painting;
+    private bool _readOnly;
 
     public LedGrid()
     {
@@ -52,6 +53,19 @@ public sealed class LedGrid : FrameworkElement
 
     /// <summary>Brightness painted by the left mouse button (1-255).</summary>
     public byte BrushValue { get; set; } = 255;
+
+    /// <summary>When true the grid only shows a live preview (animations, text) and can't be drawn on.</summary>
+    public bool IsReadOnly
+    {
+        get => _readOnly;
+        set
+        {
+            _readOnly = value;
+            _painting = false;
+            Cursor = value ? Cursors.Arrow : Cursors.Cross;
+            InvalidateVisual();
+        }
+    }
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -80,7 +94,7 @@ public sealed class LedGrid : FrameworkElement
             drawingContext.DrawRoundedRectangle(null, HoverPen, CellRect(board, cell, h.X, h.Y), radius, radius);
         }
 
-        if (IsKeyboardFocused)
+        if (IsKeyboardFocused && !_readOnly)
         {
             drawingContext.DrawRoundedRectangle(null, FocusPen, CellRect(board, cell, _cursor.X, _cursor.Y), radius, radius);
         }
@@ -92,7 +106,7 @@ public sealed class LedGrid : FrameworkElement
     {
         base.OnMouseDown(e);
         Focus();
-        if (!HitTest(e.GetPosition(this), out var x, out var y))
+        if (_readOnly || !HitTest(e.GetPosition(this), out var x, out var y))
         {
             return;
         }
@@ -115,16 +129,16 @@ public sealed class LedGrid : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        (int, int)? hover = HitTest(e.GetPosition(this), out var x, out var y) ? (x, y) : null;
+        (int, int)? hover = !_readOnly && HitTest(e.GetPosition(this), out var x, out var y) ? (x, y) : null;
         if (hover != _hover)
         {
             _hover = hover;
             InvalidateVisual();
         }
 
-        if (_painting && hover is not null)
+        if (_painting && hover is { } h)
         {
-            Paint(x, y);
+            Paint(h.Item1, h.Item2);
         }
     }
 
@@ -158,6 +172,11 @@ public sealed class LedGrid : FrameworkElement
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (_readOnly)
+        {
+            return;
+        }
+
         var (x, y) = _cursor;
         switch (e.Key)
         {

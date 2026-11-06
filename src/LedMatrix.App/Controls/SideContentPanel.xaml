@@ -1,0 +1,73 @@
+<UserControl x:Class="LedMatrix.App.Controls.SideContentPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel>
+    <ComboBox x:Name="KindBox" SelectionChanged="Kind_Changed" AutomationProperties.Name="Content type">
+      <ComboBoxItem Content="Drawing" />
+      <ComboBoxItem Content="Animation" />
+      <ComboBoxItem Content="Text" />
+    </ComboBox>
+
+    <TextBlock x:Name="FollowingText" Style="{StaticResource Caption}" Margin="0,6,0,0" Visibility="Collapsed"
+               Text="Showing the left module's content (see Both modules above)." />
+
+    <!-- Drawing -->
+    <StackPanel x:Name="DrawingPanel" Margin="0,6,0,0">
+      <ComboBox x:Name="PatternBox" SelectionChanged="Pattern_Changed"
+                AutomationProperties.Name="Pattern" ToolTip="Fill this module with a pattern" />
+      <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+        <Button Content="Clear" Click="Clear_Click" />
+        <Button Content="Invert" Click="Invert_Click" Margin="6,0,0,0" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Animation -->
+    <StackPanel x:Name="AnimationPanel" Margin="0,6,0,0">
+      <ComboBox x:Name="AnimationBox" SelectionChanged="Animation_Changed" AutomationProperties.Name="Animation" />
+      <TextBlock x:Name="AnimationDescription" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+      <CheckBox x:Name="ReverseCheck" Content="Reverse direction" Click="Reverse_Click" Margin="0,6,0,0"
+                ToolTipService.ShowOnDisabled="True" />
+    </StackPanel>
+
+    <!-- Text -->
+    <StackPanel x:Name="TextPanel" Margin="0,6,0,0">
+      <TextBox x:Name="TextInput" MaxLength="60" TextChanged="Text_Changed"
+               AutomationProperties.Name="Text to show"
+               ToolTip="Tokens: {time} {date} {battery} {cpu} {ram}" />
+      <Grid Margin="0,6,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition />
+          <ColumnDefinition Width="6" />
+          <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+        <ComboBox x:Name="LayoutBox" Grid.Column="0" SelectionChanged="TextOption_Changed" AutomationProperties.Name="Text layout">
+          <ComboBoxItem Content="Stacked" />
+          <ComboBoxItem Content="Sideways" />
+          <ComboBoxItem Content="Ticker" />
+        </ComboBox>
+        <ComboBox x:Name="FontBox" Grid.Column="2" SelectionChanged="TextOption_Changed" AutomationProperties.Name="Font">
+          <ComboBoxItem Content="Auto-fit" ToolTip="Full size if it fits, otherwise ½ size" />
+          <ComboBoxItem Content="Full size" ToolTip="5×7 letters" />
+          <ComboBoxItem Content="½ size" ToolTip="3×5 letters" />
+        </ComboBox>
+      </Grid>
+      <ComboBox x:Name="MotionBox" Margin="0,6,0,0" SelectionChanged="TextOption_Changed" AutomationProperties.Name="Text motion" />
+      <TextBlock x:Name="FitText" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+    </StackPanel>
+
+    <!-- Shared: speed and CRT look -->
+    <DockPanel x:Name="SpeedRow" Margin="0,6,0,0">
+      <TextBlock Text="Speed" Width="48" VerticalAlignment="Center" />
+      <TextBlock x:Name="SpeedValue" DockPanel.Dock="Right" Width="54" TextAlignment="Right" VerticalAlignment="Center" />
+      <Slider x:Name="SpeedSlider" Minimum="1" Maximum="32" SmallChange="1" LargeChange="4" IsSnapToTickEnabled="True" TickFrequency="1"
+              ValueChanged="Speed_Changed" VerticalAlignment="Center" AutomationProperties.Name="Speed" />
+    </DockPanel>
+    <DockPanel x:Name="CrtRow" Margin="0,6,0,0">
+      <CheckBox x:Name="CrtCheck" Content="CRT look" Click="Crt_Click" VerticalAlignment="Center" Width="96"
+                ToolTip="Scanlines, a rolling bar, afterglow and a slight flicker" />
+      <Slider x:Name="CrtSlider" Minimum="0" Maximum="100" SmallChange="5" LargeChange="20"
+              ValueChanged="CrtIntensity_Changed" VerticalAlignment="Center" AutomationProperties.Name="CRT look intensity" />
+    </DockPanel>
+    <TextBlock x:Name="EngineText" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+  </StackPanel>
+</UserControl>

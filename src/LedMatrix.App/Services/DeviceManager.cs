@@ -1,14 +1,17 @@
 using System.Windows.Threading;
 using LedMatrix.Core;
+using LedMatrix.Core.Animation;
 
 namespace LedMatrix.App.Services;
 
 /// <summary>
-/// Owns the Left/Right <see cref="MatrixDevice"/> instances, keeps them in sync with the
-/// desired state, and re-detects modules on hot-plug or resume. UI-thread only.
+/// Owns the Left/Right <see cref="MatrixDevice"/> instances and re-detects modules on hot-plug or
+/// resume. It is also the animation engine's output: <see cref="Show"/> is called from the engine's
+/// clock thread, so device access is guarded by a lock. Rescans happen on the UI thread.
 /// </summary>
-internal sealed class DeviceManager : IDisposable
+internal sealed class DeviceManager : IFrameSink, IDisposable
 {
+    private readonly object _lock = new();
     private readonly AppSettings _settings;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<MatrixSide, MatrixDevice?> _devices = new()
@@ -17,29 +20,48 @@ internal sealed class DeviceManager : IDisposable
         [MatrixSide.Right] = null,
     };
 
-    private readonly Dictionary<MatrixSide, LedMatrix.Core.Frame> _frames = new();
+    private readonly Dictionary<MatrixSide, LedMatrix.Core.Frame> _frames = new()
+    {
+        [MatrixSide.Left] = new LedMatrix.Core.Frame(),
+        [MatrixSide.Right] = new LedMatrix.Core.Frame(),
+    };
+
+    private readonly Dictionary<MatrixSide, ushort?> _scroll = new()
+    {
+        [MatrixSide.Left] = null,
+        [MatrixSide.Right] = null,
+    };
+
     private bool _awake = true;
 
     public DeviceManager(AppSettings settings, Dispatcher dispatcher)
     {
         _settings = settings;
         _dispatcher = dispatcher;
-        _frames[MatrixSide.Left] = settings.GetFrame(MatrixSide.Left);
-        _frames[MatrixSide.Right] = settings.GetFrame(MatrixSide.Right);
     }
 
     /// <summary>Raised on the UI thread when a module appears, disappears or changes status.</summary>
     public event EventHandler? DevicesChanged;
 
-    public MatrixDevice? Get(MatrixSide side) => _devices[side];
-
-    public LedMatrix.Core.Frame GetFrame(MatrixSide side) => _frames[side];
+    public MatrixDevice? Get(MatrixSide side)
+    {
+        lock (_lock)
+        {
+            return _devices[side];
+        }
+    }
 
     public void Rescan()
     {
         var modules = DeviceDiscovery.Find();
-        var (left, right) = RoleAssigner.Assign(modules.Select(m => m.SerialNumber).ToList(), _settings);
-        var changed = Update(MatrixSide.Left, left, modules) | Update(MatrixSide.Right, right, modules);
+        bool changed;
+        string? left, right;
+        lock (_lock)
+        {
+            (left, right) = RoleAssigner.Assign(modules.Select(m => m.SerialNumber).ToList(), _settings);
+            changed = Update(MatrixSide.Left, left, modules) | Update(MatrixSide.Right, right, modules);
+        }
+
         Log.Info($"Rescan: {modules.Count} module(s) found. Left={left ?? "-"} Right={right ?? "-"}");
         if (changed)
         {
@@ -49,51 +71,80 @@ internal sealed class DeviceManager : IDisposable
 
     public void Swap()
     {
-        RoleAssigner.Swap(_settings);
-        // Force both sides to be rebuilt with the swapped serials; drawings stay on their side.
-        DisposeDevice(MatrixSide.Left);
-        DisposeDevice(MatrixSide.Right);
+        lock (_lock)
+        {
+            RoleAssigner.Swap(_settings);
+            // Rebuild both sides with the swapped serials; the content stays on its side of the screen.
+            DisposeDevice(MatrixSide.Left);
+            DisposeDevice(MatrixSide.Right);
+        }
+
         Rescan();
         DevicesChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetFrame(MatrixSide side, LedMatrix.Core.Frame frame)
+    /// <inheritdoc />
+    public void Show(MatrixSide side, LedMatrix.Core.Frame frame, ushort? moduleScrollPeriodMs)
     {
-        _frames[side] = frame.Clone();
-        _devices[side]?.SetFrame(frame);
+        lock (_lock)
+        {
+            _frames[side] = frame;
+            _scroll[side] = moduleScrollPeriodMs;
+            var device = _devices[side];
+            device?.SetScroll(moduleScrollPeriodMs);
+            device?.SetFrame(frame);
+        }
     }
 
     public void SetBrightness(byte brightness)
     {
-        foreach (var d in _devices.Values)
+        lock (_lock)
         {
-            d?.SetBrightness(brightness);
+            foreach (var d in _devices.Values)
+            {
+                d?.SetBrightness(brightness);
+            }
         }
     }
 
     public void SetAwake(bool awake)
     {
-        _awake = awake;
-        foreach (var d in _devices.Values)
+        lock (_lock)
         {
-            d?.SetAwake(awake);
+            _awake = awake;
+            foreach (var d in _devices.Values)
+            {
+                d?.SetAwake(awake);
+            }
         }
     }
 
     public void ResyncAll()
     {
-        foreach (var d in _devices.Values)
+        lock (_lock)
         {
-            d?.Resync();
+            foreach (var d in _devices.Values)
+            {
+                d?.Resync();
+            }
         }
     }
 
-    public void Identify(MatrixSide side) => _devices[side]?.Identify();
+    public void Identify(MatrixSide side)
+    {
+        lock (_lock)
+        {
+            _devices[side]?.Identify();
+        }
+    }
 
     public void Dispose()
     {
-        DisposeDevice(MatrixSide.Left);
-        DisposeDevice(MatrixSide.Right);
+        lock (_lock)
+        {
+            DisposeDevice(MatrixSide.Left);
+            DisposeDevice(MatrixSide.Right);
+        }
     }
 
     private bool Update(MatrixSide side, string? serial, IReadOnlyList<DiscoveredModule> modules)
@@ -120,6 +171,7 @@ internal sealed class DeviceManager : IDisposable
 
         var device = new MatrixDevice(module.SerialNumber, new SerialPortTransport(module.PortName));
         device.SetBrightness(_settings.Brightness);
+        device.SetScroll(_scroll[side]);
         device.SetFrame(_frames[side]);
         device.SetAwake(_awake);
         device.StatusChanged += OnDeviceStatusChanged;

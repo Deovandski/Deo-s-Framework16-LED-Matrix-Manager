@@ -8,13 +8,13 @@ using System.Windows.Navigation;
 using LedMatrix.App.Controls;
 using LedMatrix.App.Services;
 using LedMatrix.Core;
+using LedMatrix.Core.Animation;
 using Frame = LedMatrix.Core.Frame;
 
 namespace LedMatrix.App;
 
 public partial class MainWindow : Window
 {
-    private const string CustomItem = "Custom drawing";
     private static readonly Brush OnBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0xC3, 0x6B));
     private static readonly Brush OffBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
 
@@ -26,21 +26,24 @@ public partial class MainWindow : Window
         _controller = controller;
         InitializeComponent();
 
-        foreach (var combo in new[] { LeftPattern, RightPattern })
-        {
-            combo.Items.Add(CustomItem);
-            foreach (var p in Patterns.All)
-            {
-                combo.Items.Add(p.Name);
-            }
-
-            combo.SelectedIndex = 0;
-        }
-
-        LeftGrid.Frame = _controller.Devices.GetFrame(MatrixSide.Left);
-        RightGrid.Frame = _controller.Devices.GetFrame(MatrixSide.Right);
+        LeftGrid.Frame = _controller.Settings.GetFrame(MatrixSide.Left);
+        RightGrid.Frame = _controller.Settings.GetFrame(MatrixSide.Right);
         LeftGrid.FrameEdited += (_, _) => OnGridEdited(MatrixSide.Left);
         RightGrid.FrameEdited += (_, _) => OnGridEdited(MatrixSide.Right);
+
+        foreach (var panel in new[] { LeftPanel, RightPanel })
+        {
+            panel.ContentChanged += OnPanelContentChanged;
+            panel.PatternChosen += (sender, pattern) => ApplyDrawing(((SideContentPanel)sender!).Side, pattern.Create());
+            panel.ClearRequested += (sender, _) => ApplyDrawing(((SideContentPanel)sender!).Side, new Frame());
+            panel.InvertRequested += (sender, _) =>
+            {
+                var side = ((SideContentPanel)sender!).Side;
+                var frame = _controller.Settings.GetFrame(side);
+                frame.Invert();
+                ApplyDrawing(side, frame);
+            };
+        }
 
         var s = _controller.Settings;
         BrightnessSlider.Value = s.Brightness;
@@ -56,13 +59,29 @@ public partial class MainWindow : Window
         LockCheck.IsChecked = s.AutoOff.WhenLocked;
         AutoOffDetails.IsEnabled = s.AutoOff.Enabled;
         StartupCheck.IsChecked = StartupRegistration.IsEnabled();
+        if (StartupRegistration.ManagedByWindows)
+        {
+            StartupCheck.Visibility = Visibility.Collapsed;
+            StartupManagedText.Visibility = Visibility.Visible;
+        }
+
+        CrtTransitionsCheck.IsChecked = s.CrtTransitions;
+        GapCheck.IsChecked = s.KeyboardGap;
         VersionRun.Text = $"Version {App.VersionText}";
 
         _controller.StateChanged += OnStateChanged;
-        Closed += (_, _) => _controller.StateChanged -= OnStateChanged;
+        _controller.PreviewFrame += OnPreviewFrame;
+        Closed += (_, _) =>
+        {
+            _controller.StateChanged -= OnStateChanged;
+            _controller.PreviewFrame -= OnPreviewFrame;
+            _controller.PreviewEnabled = false;
+        };
 
+        RefreshContent();
         RefreshState();
         _loading = false;
+        _controller.PreviewEnabled = true; // grids animate while the window is open
     }
 
     private static string Percent(double value) => $"{Math.Round(value / 255 * 100)}%";
@@ -71,8 +90,6 @@ public partial class MainWindow : Window
         Enum.Parse<MatrixSide>((string)((FrameworkElement)sender).Tag);
 
     private LedGrid GridOf(MatrixSide side) => side == MatrixSide.Left ? LeftGrid : RightGrid;
-
-    private ComboBox PatternBoxOf(MatrixSide side) => side == MatrixSide.Left ? LeftPattern : RightPattern;
 
     private void OnStateChanged(object? sender, EventArgs e) => RefreshState();
 
@@ -140,54 +157,122 @@ public partial class MainWindow : Window
         _ => "connecting…",
     };
 
-    // ----- Drawing -----
+    // ----- Content (drawing / animation / text) -----
 
-    private void OnGridEdited(MatrixSide side)
+    /// <summary>Reloads both content panels and decides which grids can be drawn on.</summary>
+    private void RefreshContent()
     {
-        _controller.SetFrame(side, GridOf(side).Frame);
-        var combo = PatternBoxOf(side);
-        if (combo.SelectedIndex != 0)
+        var wasLoading = _loading;
+        _loading = true;
+        try
         {
-            _loading = true;
-            combo.SelectedIndex = 0;
-            _loading = false;
+            RefreshContentCore();
+        }
+        finally
+        {
+            _loading = wasLoading;
         }
     }
 
-    private void Pattern_Changed(object sender, SelectionChangedEventArgs e)
+    private void RefreshContentCore()
     {
-        if (_loading || sender is not ComboBox combo || combo.SelectedItem is not string name || name == CustomItem)
+        var s = _controller.Settings;
+        LinkIndependent.IsChecked = s.Link == LinkMode.Independent;
+        LinkMirror.IsChecked = s.Link == LinkMode.Mirror;
+        LinkSpan.IsChecked = s.Link == LinkMode.Span;
+        GapCheck.IsEnabled = s.Link == LinkMode.Span;
+
+        LeftPanel.Load(s.LeftContent, s.Link, following: false);
+        RightPanel.Load(s.RightContent, s.Link, following: RightFollowsLeft());
+        UpdateEditability();
+    }
+
+    /// <summary>In Mirror and Span the right module shows the left content (except drawings in Span, which stay per side).</summary>
+    private bool RightFollowsLeft()
+    {
+        var s = _controller.Settings;
+        return s.Link == LinkMode.Mirror || (s.Link == LinkMode.Span && s.LeftContent.Kind != ContentKind.Drawing);
+    }
+
+    /// <summary>A grid is editable when it shows a plain drawing; otherwise it is a live preview.</summary>
+    private void UpdateEditability()
+    {
+        var s = _controller.Settings;
+        var leftEditable = s.LeftContent.Kind == ContentKind.Drawing && !s.LeftContent.CrtLook;
+        var rightEditable = s.Link switch
+        {
+            LinkMode.Independent => s.RightContent.Kind == ContentKind.Drawing && !s.RightContent.CrtLook,
+            LinkMode.Span => leftEditable, // Span with drawings: each side keeps its own drawing
+            _ => false,
+        };
+        SetEditable(MatrixSide.Left, leftEditable);
+        SetEditable(MatrixSide.Right, rightEditable);
+    }
+
+    private void SetEditable(MatrixSide side, bool editable)
+    {
+        var grid = GridOf(side);
+        var wasReadOnly = grid.IsReadOnly;
+        grid.IsReadOnly = !editable;
+        if (editable && wasReadOnly)
+        {
+            grid.Frame = _controller.Settings.GetFrame(side); // back to the drawing
+        }
+    }
+
+    private void OnPanelContentChanged(object? sender, Action<SideContent> change)
+    {
+        var panel = (SideContentPanel)sender!;
+        var before = _controller.Settings.LeftContent.Kind;
+        _controller.UpdateContent(panel.Side, change);
+
+        // The right panel depends on the left content in Mirror/Span; reload it, never the one being typed in.
+        if (panel.Side == MatrixSide.Left && (_controller.Settings.Link != LinkMode.Independent || before != _controller.Settings.LeftContent.Kind))
+        {
+            RightPanel.Load(_controller.Settings.RightContent, _controller.Settings.Link, following: RightFollowsLeft());
+        }
+
+        UpdateEditability();
+    }
+
+    private void OnPreviewFrame(MatrixSide side, Frame frame)
+    {
+        var grid = GridOf(side);
+        if (grid.IsReadOnly)
+        {
+            grid.Frame = frame;
+        }
+    }
+
+    private void OnGridEdited(MatrixSide side) => _controller.SetDrawing(side, GridOf(side).Frame);
+
+    private void ApplyDrawing(MatrixSide side, Frame frame)
+    {
+        _controller.SetDrawing(side, frame);
+        if (!GridOf(side).IsReadOnly)
+        {
+            GridOf(side).Frame = frame;
+        }
+    }
+
+    private void Link_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
         {
             return;
         }
 
-        var pattern = Patterns.Find(name);
-        if (pattern is null)
-        {
-            return;
-        }
-
-        var side = SideOf(sender);
-        var frame = pattern.Create();
-        GridOf(side).Frame = frame;
-        _controller.SetFrame(side, frame);
+        var link = LinkMirror.IsChecked == true ? LinkMode.Mirror
+            : LinkSpan.IsChecked == true ? LinkMode.Span
+            : LinkMode.Independent;
+        _controller.SetLink(link);
+        RefreshContent();
     }
 
-    private void Clear_Click(object sender, RoutedEventArgs e)
-    {
-        var side = SideOf(sender);
-        GridOf(side).Frame = new Frame();
-        OnGridEdited(side);
-    }
+    private void Gap_Click(object sender, RoutedEventArgs e) => _controller.SetKeyboardGap(GapCheck.IsChecked == true);
 
-    private void Invert_Click(object sender, RoutedEventArgs e)
-    {
-        var side = SideOf(sender);
-        var frame = GridOf(side).Frame.Clone();
-        frame.Invert();
-        GridOf(side).Frame = frame;
-        OnGridEdited(side);
-    }
+    private void CrtTransitions_Click(object sender, RoutedEventArgs e) =>
+        _controller.SetCrtTransitions(CrtTransitionsCheck.IsChecked == true);
 
     private void Brush_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -275,6 +360,8 @@ public partial class MainWindow : Window
         StartupCheck.IsChecked = StartupRegistration.IsEnabled();
     }
 
+    private void StartupSettings_Click(object sender, RoutedEventArgs e) => StartupRegistration.OpenWindowsStartupSettings();
+
     // ----- Links -----
 
     private void Link_RequestNavigate(object sender, RequestNavigateEventArgs e)
@@ -286,7 +373,7 @@ public partial class MainWindow : Window
     private void OpenLogs_Click(object sender, RoutedEventArgs e)
     {
         Directory.CreateDirectory(FileLogger.LogDirectory);
-        OpenShell(FileLogger.LogDirectory);
+        OpenShell(PackageInfo.ForExplorer(FileLogger.LogDirectory));
     }
 
     private static void OpenShell(string target)
