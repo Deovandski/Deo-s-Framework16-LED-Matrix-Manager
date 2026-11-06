@@ -21,7 +21,7 @@ A lightweight Windows tray app for the Framework Laptop 16 **LED Matrix** input 
 - **Text.** Type something and it's fitted to the module: stacked, sideways or as a ticker, still or sliding. Use `{time}`, `{date}`, `{battery}`, `{cpu}` or `{ram}` for live values.
 - **CRT effects.** A retro scanline look over anything, a "No signal" screen, and an optional old-TV power off/on when the content changes.
 - **Turns off with the laptop screen.** Docked with the lid closed, "Second screen only", or the screen timing out: the LEDs fade out, whatever is playing. They come back when the laptop screen does.
-- **Lives in the tray.** Starts with Windows, idles at about 0% CPU, and remembers your drawings, animations and module names. Default brightness is 39%. 🎤
+- **Lives in the tray.** Starts with Windows, idles at about 0% CPU, and remembers your drawings, animations and module names. Default brightness is 39%. 🩵🎤
 - **Native and light.** C# / .NET 10 / WPF with the Windows 11 Fluent theme. No admin rights, no drivers, no telemetry.
 
 ## Gallery
