@@ -393,19 +393,37 @@
         }
       }
 
-      // Gentle scroll on the right module (like the firmware's Animate), paused once someone draws.
+      // Gentle scroll on the right module (like the firmware's Animate), paused once someone draws,
+      // and only running while the demo is on screen and the tab is visible.
       var drawn = false;
-      if (!reduceMotion) {
-        setInterval(function () {
-          if (drawn || document.hidden) return;
-          var state = right.map(function (c) { return c.classList.contains("on"); });
-          for (var y = 0; y < H; y++) {
-            for (var x = 0; x < W; x++) {
-              right[x + W * y].classList.toggle("on", state[x + W * ((y + 1) % H)]);
-            }
+      var scrollTimer = null;
+      var deckOnScreen = true;
+      function scrollStep() {
+        if (drawn) return;
+        var state = right.map(function (c) { return c.classList.contains("on"); });
+        for (var y = 0; y < H; y++) {
+          for (var x = 0; x < W; x++) {
+            right[x + W * y].classList.toggle("on", state[x + W * ((y + 1) % H)]);
           }
-        }, 160);
+        }
       }
+      function updateScroll() {
+        var run = !reduceMotion && !drawn && deckOnScreen && !document.hidden;
+        if (run && scrollTimer === null) {
+          scrollTimer = setInterval(scrollStep, 160);
+        } else if (!run && scrollTimer !== null) {
+          clearInterval(scrollTimer);
+          scrollTimer = null;
+        }
+      }
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (entries) {
+          deckOnScreen = entries[0].isIntersecting;
+          updateScroll();
+        }, { threshold: 0.15 }).observe(document.getElementById("deck"));
+      }
+      document.addEventListener("visibilitychange", updateScroll);
+      updateScroll();
 
       // Drawing: pointer down picks paint/erase from the first cell, drag continues.
       function wire(el, cells) {
@@ -418,6 +436,7 @@
           var c = cellAt(ev);
           if (!c) return;
           drawn = true;
+          updateScroll();
           painting = true;
           value = ev.button === 2 || ev.ctrlKey ? false : !c.classList.contains("on");
           c.classList.toggle("on", value);
@@ -447,12 +466,31 @@
     })();
   </script>
   <script>
-    // "Reduce motion" set in the OS: the demo video doesn't autoplay; it waits for play.
+    // Demo video: pauses when scrolled out of view and picks up again when it comes back (unless
+    // the visitor paused it). With "reduce motion" set in the OS it never starts by itself.
     (function () {
       var v = document.querySelector("#in-action video");
-      if (v && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!v) return;
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) {
         v.removeAttribute("autoplay");
         v.pause();
+      }
+
+      var pausedByScroll = false;
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (entries) {
+          if (!entries[0].isIntersecting) {
+            if (!v.paused) {
+              v.pause();
+              pausedByScroll = true;
+            }
+          } else if (pausedByScroll && !reduce) {
+            pausedByScroll = false;
+            var p = v.play();
+            if (p && p.catch) p.catch(function () {});
+          }
+        }, { threshold: 0.25 }).observe(v);
       }
     })();
   </script>
