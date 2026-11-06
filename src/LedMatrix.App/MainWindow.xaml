@@ -7,13 +7,35 @@
         Width="1040" Height="900" MinWidth="820" MinHeight="680"
         WindowStartupLocation="CenterScreen">
   <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="340" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
+    <!-- ===== Hardware banner (looks like a Windows InfoBar); hidden on a Framework Laptop 16 ===== -->
+    <Border x:Name="HardwareBanner" Grid.Row="0" Grid.ColumnSpan="2" Margin="24,16,24,0" Padding="16,0,4,0"
+            MinHeight="48" CornerRadius="4" BorderThickness="1" Visibility="Collapsed"
+            Background="{DynamicResource InfoBarInformationalSeverityBackgroundBrush}"
+            BorderBrush="{DynamicResource InfoBarBorderBrush}">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Left" Text="&#xE946;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16"
+                   VerticalAlignment="Center" Margin="0,0,12,0" AutomationProperties.Name="Information"
+                   Foreground="{DynamicResource InfoBarInformationalSeverityIconBackground}" />
+        <Button DockPanel.Dock="Right" Click="HardwareBannerClose_Click" Width="32" Height="32" Padding="0"
+                Margin="8,7,4,7" VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
+                ToolTip="Close" AutomationProperties.Name="Close message">
+          <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" />
+        </Button>
+        <TextBlock x:Name="HardwareBannerText" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,12,0,12" />
+      </DockPanel>
+    </Border>
+
     <!-- ===== Sidebar (mirrors the controls panel of ledmatrix.frame.work) ===== -->
-    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="24,20,16,24">
         <TextBlock Text="LED Matrix Manager" FontSize="22" FontWeight="SemiBold" />
         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
@@ -116,7 +138,7 @@
     </ScrollViewer>
 
     <!-- ===== Two LED matrices side by side (Left / Right) ===== -->
-    <Grid Grid.Column="1" Margin="8,20,24,24">
+    <Grid Grid.Row="1" Grid.Column="1" Margin="8,20,24,24">
       <Grid.ColumnDefinitions>
         <ColumnDefinition />
         <ColumnDefinition Width="16" />

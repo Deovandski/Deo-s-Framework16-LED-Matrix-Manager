@@ -69,6 +69,13 @@ public partial class MainWindow : Window
         GapCheck.IsChecked = s.KeyboardGap;
         VersionRun.Text = $"Version {App.VersionText}";
 
+        // A cheeky hint on PCs that can't have LED Matrix modules (nothing when unsure).
+        if (HardwareInfo.BannerMessage is { } banner && !_controller.HardwareBannerClosed)
+        {
+            HardwareBannerText.Text = banner;
+            HardwareBanner.Visibility = Visibility.Visible;
+        }
+
         _controller.StateChanged += OnStateChanged;
         _controller.PreviewFrame += OnPreviewFrame;
         Closed += (_, _) =>
@@ -361,6 +368,14 @@ public partial class MainWindow : Window
     }
 
     private void StartupSettings_Click(object sender, RoutedEventArgs e) => StartupRegistration.OpenWindowsStartupSettings();
+
+    // ----- Hardware banner -----
+
+    private void HardwareBannerClose_Click(object sender, RoutedEventArgs e)
+    {
+        _controller.HardwareBannerClosed = true; // until the app exits
+        HardwareBanner.Visibility = Visibility.Collapsed;
+    }
 
     // ----- Links -----
 

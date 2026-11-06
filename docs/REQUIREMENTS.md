@@ -143,6 +143,12 @@ Specified in [proposals/ANIMATION-TEXT-CRT.md](proposals/ANIMATION-TEXT-CRT.md) 
 | FR-51 | The last shown content is restored on startup and after resume. | M |
 | FR-52 | Settings can be exported and imported. | C |
 
+### 4.8 Hardware check
+
+| ID | Requirement | Pri | Status |
+|---|---|---|---|
+| FR-80 | A light-hearted, closable banner at the top of the main window on PCs that can't have LED Matrix modules: one message for non-Framework PCs, another for Framework PCs that aren't a Laptop 16. The model comes from the SMBIOS values in `HKLM\HARDWARE\DESCRIPTION\System\BIOS` (no WMI). Nothing is shown on a Laptop 16 or when the model can't be told (blank or placeholder values). Closing it hides it until the app exits. | C | Done |
+
 ## 5. Non-functional requirements
 
 | ID | Requirement | Pri |

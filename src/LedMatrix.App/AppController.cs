@@ -86,6 +86,9 @@ internal sealed class AppController : IDisposable
         set => Engine.PreviewEnabled = value;
     }
 
+    /// <summary>Set when the hardware banner is closed; lasts until the app exits (not saved).</summary>
+    public bool HardwareBannerClosed { get; set; }
+
     public string DeviceName(MatrixSide side)
     {
         var serial = Devices.Get(side)?.SerialNumber ?? Settings.GetSerial(side);
