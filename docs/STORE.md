@@ -42,7 +42,7 @@ Requirements: the .NET 10 SDK and a Windows SDK (Visual Studio Installer › Ind
 **Windows 11 SDK**). Run in PowerShell from the repo folder:
 
 ```powershell
-.\tools\Build-StorePackage.ps1              # builds artifacts\store\DeoLedMatrixManager_0.2.0.0_x64.msix
+.\tools\Build-StorePackage.ps1              # builds artifacts\store\DeoLedMatrixManager_1.0.0.0_x64.msix
 .\tools\Build-StorePackage.ps1 -Register    # also installs it on this PC for testing
 ```
 

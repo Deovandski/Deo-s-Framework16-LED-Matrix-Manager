@@ -7,13 +7,13 @@ Status: research notes, November 2026. Nothing here has been set up yet.
 The release pipeline is already in place (`.github/workflows/release.yml`):
 
 1. Make sure `main` is pushed and the CI build is green.
-2. Set the version in `Directory.Build.props` (it's `0.2.0` now).
+2. Set the version in `Directory.Build.props` (it's `1.0.0` now).
 3. Tag and push:
    ```powershell
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v1.0.0
+   git push origin v1.0.0
    ```
-4. GitHub Actions then runs the tests, publishes the self-contained app, builds `DeoLedMatrixManager-Setup-0.2.0.exe` with Inno Setup, and creates a GitHub Release with generated notes.
+4. GitHub Actions then runs the tests, publishes the self-contained app, builds `DeoLedMatrixManager-Setup-1.0.0.exe` with Inno Setup, and creates a GitHub Release with generated notes.
 5. Check the release page and edit the notes. Tick "pre-release" while it's 0.x.
 
 **What unsigned means for users:**
@@ -47,7 +47,7 @@ A signature alone doesn't make SmartScreen trust a new certificate straight away
 
 ## 4. Recommendation
 
-1. **Now:** release v0.2.0 unsigned as a pre-release, so people can try it.
+1. **Now:** release v1.0.0 unsigned, so people can try it.
 2. **Next:** set up **Azure Artifact Signing** if you live in the US or Canada. It's the cheapest way to have *your* name as the publisher, it needs no hardware, and it plugs straight into the existing release workflow. If you'd rather not pay, apply to **SignPath Foundation**. The trade-offs are the publisher name and a manual approval for each release.
 3. **Microsoft Store:** in progress. See [STORE.md](STORE.md). The Store signs its copy, so Store installs work even with Smart App Control on.
 4. **Later, optional:** a winget manifest for `winget install`.

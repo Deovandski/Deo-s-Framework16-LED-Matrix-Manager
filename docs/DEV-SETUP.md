@@ -116,8 +116,8 @@ CI builds the installer for you (see §6). To build it on your PC:
 ```powershell
 winget install --id JRSoftware.InnoSetup -e
 dotnet publish src\LedMatrix.App -c Release -o publish
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=0.1.0 installer\LedMatrixManager.iss
-# Output: installer\Output\DeoLedMatrixManager-Setup-0.1.0.exe
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DMyAppVersion=1.0.0 installer\LedMatrixManager.iss
+# Output: installer\Output\DeoLedMatrixManager-Setup-1.0.0.exe
 ```
 
 The installer is per-user (no admin) and self-contained (no separate .NET install needed). It adds a Start menu shortcut and an optional "start with Windows" entry, and its uninstaller cleans up.
@@ -127,7 +127,7 @@ The installer is per-user (no admin) and self-contained (no separate .NET instal
 | Workflow | Runs when | Does |
 |---|---|---|
 | `ci.yml` | Every push or PR | Builds the whole solution on Windows and runs the tests |
-| `release.yml` | You push a tag like `v0.1.0` | Tests, publishes, builds the installer, creates a GitHub Release with the `.exe` attached |
+| `release.yml` | You push a tag like `v1.0.0` | Tests, publishes, builds the installer, creates a GitHub Release with the `.exe` attached |
 | `pages.yml` | `site/` changes on `main` | Deploys the website to GitHub Pages |
 
 **One-time setup for the website:** on GitHub, open the repo's **Settings → Pages**, and under *Build and deployment* set **Source** to **GitHub Actions**. The site will be at <https://deovandski.github.io/Deo-s-Framework16-LED-Matrix-Manager/>.
@@ -135,6 +135,6 @@ The installer is per-user (no admin) and self-contained (no separate .NET instal
 **To release a version:**
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```

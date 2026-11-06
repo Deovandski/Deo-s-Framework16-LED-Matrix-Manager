@@ -1,5 +1,5 @@
 ; Inno Setup 6 script for Deo's LED Matrix Manager.
-; Build locally:  "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=0.1.0 installer\LedMatrixManager.iss
+; Build locally:  "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=1.0.0 installer\LedMatrixManager.iss
 ; (after: dotnet publish src\LedMatrix.App -c Release -o publish)
 
 #define MyAppName "Deo's LED Matrix Manager"
@@ -8,7 +8,7 @@
 #define MyAppUrl "https://deovandski.github.io/Deo-s-Framework16-LED-Matrix-Manager/"
 #define MyRepoUrl "https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.0"
+  #define MyAppVersion "1.0.0"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\publish"
