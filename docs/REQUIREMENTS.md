@@ -33,7 +33,7 @@ These are confirmed from Framework's `inputmodule-rs` firmware source. Details a
 3. **Any command wakes the module.** While the app wants the LEDs off, it must send **nothing** except the Sleep command.
 4. **Firmware-side sleep:** USB suspend and the laptop's `SLEEP#` signal also put the module to sleep. After resume or replug, the module comes back empty, so the app must re-send state.
 5. **COM ports are exclusive.** If another tool has the port open (the official `inputmodule-control`, the ledmatrix.frame.work web app, or another manager), our app can't open it. The app must say so clearly.
-6. **No built-in left/right identity.** Each module reports a USB serial number. Its physical position has to come from the user, for example through an "Identify" flash.
+6. **No built-in left/right identity.** Serial numbers aren't reliable either: unprogrammed modules all report the firmware default, so two of them can trade identities between boots. The app keys each module by its USB slot, which never changes; which slot is Left comes from the user once ("Identify", "Swap left/right").
 
 ## 4. Functional requirements
 
@@ -59,7 +59,7 @@ Priority: **M** = Must (v1), **S** = Should (v1 if time allows), **C** = Could (
 | FR-12 | Re-scans and re-sends state after the PC resumes from sleep and after USB re-enumerates. | M |
 | FR-13 | Reads and shows each module's firmware version (command `0x20`) and USB serial number. | M |
 | FR-14 | **Identify** button: flashes the selected module (for example, all-on blinking for 3 s) so the user can tell which one it is. | M |
-| FR-15 | The user can give each module a name (default "Left" or "Right" after Identify, or "Matrix 1/2"). Names are remembered by USB serial number. | M |
+| FR-15 | The user can give each module a name (default "Left" or "Right" after Identify, or "Matrix 1/2"). Names and Left/Right roles are remembered by USB slot (stable across boots even when modules share the default serial). | M |
 | FR-16 | **Two modules, Left and Right**, each with its own canvas (the same model as ledmatrix.frame.work). A **Swap** button switches which physical module is Left. Extra layout modes come later: *Mirror* (same content on both) and *Span* (one 18×34 canvas). | M (Mirror/Span: S) |
 | FR-17 | **Sync:** In Mirror and Span modes, frames go to every module in the same render tick, and both modules change on/off together. | M |
 | FR-18 | If a COM port is busy or fails, the UI shows the problem ("in use by another app"), retries with back-off, and never crashes or blocks the UI. | M |
@@ -208,7 +208,7 @@ LedMatrixManager.slnx, Directory.Build.props, .editorconfig, .gitignore
 **Main parts:**
 
 - `MatrixDevice`: one per COM port. It runs a dedicated writer queue and handles encoding, keep-alive and reconnects.
-- `DeviceManager`: finds modules, watches hot-plug, maps serial numbers to names and layout roles.
+- `DeviceManager`: finds modules, watches hot-plug, maps USB slots to names and layout roles.
 - `RenderEngine`: turns the active content (pattern, drawing or animation) into frames for each module, depending on the layout mode.
 - `ScreenStateMonitor`: a hidden message window that combines the display layout, lid, display power and resume events into one `ShouldBeOn` signal, with debounce.
 - `LedPowerController`: a state machine (On, TurningOff, Off, TurningOn) that applies the manual override and gates all device traffic.

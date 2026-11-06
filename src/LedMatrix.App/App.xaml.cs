@@ -57,6 +57,9 @@ public partial class App : Application
             args.SetObserved();
         };
 
+        // Sign-out, restart or shutdown: save right away, there may be no orderly exit after this.
+        SessionEnding += (_, _) => _controller?.SaveNow();
+
         // The Fluent theme is loaded on first use (window or tray menu), not here: an app that
         // starts with Windows and sits in the tray shouldn't pay for it until it shows something.
         _messageWindow = new MessageWindow();
@@ -113,6 +116,7 @@ public partial class App : Application
             _mainWindow.Closed += (_, _) =>
             {
                 _mainWindow = null;
+                _controller?.SaveNow(); // closing the window is a natural "done editing" moment
 
                 // Hand the window's memory back once the UI is idle, instead of waiting for a
                 // full collection that a quiet tray app may not trigger for hours.

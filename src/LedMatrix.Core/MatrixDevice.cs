@@ -330,7 +330,7 @@ public sealed class MatrixDevice : IDisposable
 
         _reconnectDelay = TimeSpan.FromMilliseconds(500);
         Interlocked.Increment(ref _opens);
-        Log.Info($"{PortName}: opened (serial {SerialNumber})");
+        Log.Info($"{PortName}: opened ({SerialNumber})");
 
         // The module may have been asleep (idle timeout) or showing old content: resend everything.
         // The version is queried on the first awake pass, because any command (including the

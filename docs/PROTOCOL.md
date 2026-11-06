@@ -5,7 +5,7 @@ These notes are taken from Framework's official firmware and CLI source in [`Fra
 ## Transport
 
 - USB CDC-ACM serial. Windows shows it as `USB Serial Device (COMx)` with no driver needed.
-- **USB VID `0x32AC`**, PIDs: LED Matrix `0x0020`, B1 Display `0x0021`, C1 Minimal `0x0022`. Each device also reports a unique USB **serial number**.
+- **USB VID `0x32AC`**, PIDs: LED Matrix `0x0020`, B1 Display `0x0021`, C1 Minimal `0x0022`. Each device also reports a USB **serial number**, but modules that were never programmed with one all report the firmware default `FRAKDEBZ0100000000` (LED Matrix). With two such modules Windows names whichever starts first after the serial and the other after its USB port, and that can swap between boots, so the app identifies modules by their USB slot instead (Plug and Play `LocationInformation`, e.g. `Port_#0002.Hub_#0004`).
 - Official tools open the port at **115200 baud** with a **20 ms timeout**. Because it's CDC-ACM, the baud rate doesn't really matter, but use 115200 anyway.
 - The firmware reads **up to 64 bytes per USB read and parses one command per read**. So **send each command as its own write and keep it to 64 bytes or less**. Don't batch several commands into one buffer.
 

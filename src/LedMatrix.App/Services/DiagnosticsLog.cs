@@ -33,7 +33,7 @@ internal sealed class DiagnosticsLog : IDisposable
     public DiagnosticsLog(AppController controller, Dispatcher dispatcher)
     {
         _controller = controller;
-        _timer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = Interval };
+        _timer = new DispatcherTimer(DispatcherPriority.Normal, dispatcher) { Interval = Interval };
         _timer.Tick += (_, _) => WriteSample();
     }
 

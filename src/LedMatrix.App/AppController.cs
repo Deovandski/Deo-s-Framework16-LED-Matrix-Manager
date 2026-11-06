@@ -40,11 +40,13 @@ internal sealed class AppController : IDisposable
         Engine = new AnimationEngine(Devices, stats: new SystemStats());
         Engine.Preview += QueuePreview;
 
-        _saveTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromSeconds(1) };
+        // Normal priority: at Background priority an animating window's previews could keep the
+        // save waiting, and a change could be lost if the app was then stopped.
+        _saveTimer = new DispatcherTimer(DispatcherPriority.Normal, dispatcher) { Interval = TimeSpan.FromSeconds(1) };
         _saveTimer.Tick += (_, _) => SaveNow();
 
         // Hot-plug produces bursts of WM_DEVICECHANGE; rescan once things settle.
-        _rescanTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromMilliseconds(750) };
+        _rescanTimer = new DispatcherTimer(DispatcherPriority.Normal, dispatcher) { Interval = TimeSpan.FromMilliseconds(750) };
         _rescanTimer.Tick += (_, _) =>
         {
             _rescanTimer.Stop();

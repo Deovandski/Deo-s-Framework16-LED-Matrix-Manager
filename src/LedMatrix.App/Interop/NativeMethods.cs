@@ -289,4 +289,16 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ReadFile(SafeFileHandle hFile, ref byte lpBuffer, uint nNumberOfBytesToRead, out uint lpNumberOfBytesRead, IntPtr lpOverlapped);
+
+    // ---- Plug and Play (which USB slot a module is in) ----
+
+    public const int CR_SUCCESS = 0;
+    public const uint CM_DRP_LOCATION_INFORMATION = 0x0000000E;
+
+    [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    public static extern int CM_Locate_DevNodeW(out uint pdnDevInst, string pDeviceID, uint ulFlags);
+
+    [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    public static extern int CM_Get_DevNode_Registry_PropertyW(
+        uint dnDevInst, uint ulProperty, out uint pulRegDataType, [Out] char[] buffer, ref uint pulLength, uint ulFlags);
 }

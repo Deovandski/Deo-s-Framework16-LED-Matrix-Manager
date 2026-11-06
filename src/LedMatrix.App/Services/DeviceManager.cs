@@ -64,7 +64,7 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
         lock (_lock)
         {
             var before = (_settings.LeftSerial, _settings.RightSerial);
-            (left, right) = RoleAssigner.Assign(modules.Select(m => m.SerialNumber).ToList(), _settings);
+            (left, right) = RoleAssigner.Assign(modules.Select(m => m.Id).ToList(), _settings);
             rolesChanged = before != (_settings.LeftSerial, _settings.RightSerial);
             changed = Update(MatrixSide.Left, left, modules, old, added) | Update(MatrixSide.Right, right, modules, old, added);
         }
@@ -186,10 +186,10 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
         MatrixSide side, string? serial, IReadOnlyList<DiscoveredModule> modules, List<MatrixDevice> old, List<MatrixDevice> added)
     {
         var current = _devices[side];
-        var module = serial is null ? null : modules.FirstOrDefault(m => m.SerialNumber == serial);
+        var module = serial is null ? null : modules.FirstOrDefault(m => m.Id == serial);
 
         if (current is not null && module is not null &&
-            current.SerialNumber == module.SerialNumber && current.PortName == module.PortName)
+            current.SerialNumber == module.Id && current.PortName == module.PortName)
         {
             return false; // unchanged
         }
@@ -205,7 +205,7 @@ internal sealed class DeviceManager : IFrameSink, IDisposable
             return true;
         }
 
-        var device = new MatrixDevice(module.SerialNumber, CreateTransport(module.PortName));
+        var device = new MatrixDevice(module.Id, CreateTransport(module.PortName));
         device.SetBrightness(_settings.Brightness);
         device.SetContent(_frames[side], _scroll[side]);
         device.SetAwake(_awake);
