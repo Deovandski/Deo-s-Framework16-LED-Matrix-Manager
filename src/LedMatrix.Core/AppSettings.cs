@@ -54,6 +54,9 @@ public sealed class AppSettings
     /// <summary>Play the CRT power off/on effect when the content changes.</summary>
     public bool CrtTransitions { get; set; }
 
+    /// <summary>"Log dump for analysis": one line a minute of performance data to a daily file.</summary>
+    public bool DiagnosticsLog { get; set; }
+
     public SideContent GetContent(MatrixSide side) => side == MatrixSide.Left ? LeftContent : RightContent;
 
     public string? GetSerial(MatrixSide side) => side == MatrixSide.Left ? LeftSerial : RightSerial;

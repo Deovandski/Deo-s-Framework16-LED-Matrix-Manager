@@ -10,6 +10,10 @@ public interface IFrameSink
     void Show(MatrixSide side, Frame frame, ushort? moduleScrollPeriodMs);
 }
 
+/// <summary>Running totals since the engine started (for the diagnostics log).</summary>
+public readonly record struct EngineCounters(
+    long TimerTicks, long LeftFramesSent, long RightFramesSent, long ScrollStarts, long PreviewFrames);
+
 /// <summary>Everything the engine needs to know about what to show.</summary>
 public sealed class EngineConfig
 {
@@ -74,6 +78,11 @@ public sealed class AnimationEngine : IDisposable
     private bool _outputEnabled = true;
     private bool _previewEnabled;
     private bool _disposed;
+    private long _timerTicks;
+    private long _leftFrames;
+    private long _rightFrames;
+    private long _scrollStarts;
+    private long _previewFrames;
 
     public AnimationEngine(IFrameSink sink, TimeProvider? time = null, ISystemStats? stats = null)
         : this(sink, time, stats, useTimer: true)
@@ -146,6 +155,12 @@ public sealed class AnimationEngine : IDisposable
     public bool IsRunning
     {
         get { lock (_gate) { return _armedFor is not null; } }
+    }
+
+    /// <summary>Running totals since start: timer wake-ups, frames sent per module, firmware scrolls started, previews.</summary>
+    public EngineCounters Counters
+    {
+        get { lock (_gate) { return new(_timerTicks, _leftFrames, _rightFrames, _scrollStarts, _previewFrames); } }
     }
 
     /// <summary>How long until the next tick, or null when the clock is stopped (tests, benchmarks).</summary>
@@ -225,6 +240,7 @@ public sealed class AnimationEngine : IDisposable
             {
                 if (!_disposed)
                 {
+                    _timerTicks++;
                     TickLocked();
                 }
             }
@@ -308,6 +324,7 @@ public sealed class AnimationEngine : IDisposable
 
             if (_previewEnabled && (frameChanged || _forcePreview))
             {
+                _previewFrames++;
                 Preview?.Invoke(side, frame);
             }
 
@@ -320,6 +337,8 @@ public sealed class AnimationEngine : IDisposable
                     if (!st.Offloaded || _forceSend || !ReferenceEquals(st.OffloadSource, src) || st.OffloadPeriod != period)
                     {
                         _sink.Show(side, frame, period);
+                        _scrollStarts++;
+                        CountSent(side);
                         st.Offloaded = true;
                         st.OffloadSource = src;
                         st.OffloadPeriod = period;
@@ -329,6 +348,7 @@ public sealed class AnimationEngine : IDisposable
                 else if (st.Offloaded || _forceSend || st.LastSent is null || !frame.Equals(st.LastSent))
                 {
                     _sink.Show(side, frame, null);
+                    CountSent(side);
                     st.Offloaded = false;
                     st.OffloadSource = null;
                     st.LastSent = frame;
@@ -355,6 +375,18 @@ public sealed class AnimationEngine : IDisposable
         _forceSend = false;
         _forcePreview = false;
         Arm(_outputEnabled || _previewEnabled ? due : null);
+    }
+
+    private void CountSent(MatrixSide side)
+    {
+        if (side == MatrixSide.Left)
+        {
+            _leftFrames++;
+        }
+        else
+        {
+            _rightFrames++;
+        }
     }
 
     private static TimeSpan? Earliest(TimeSpan? a, TimeSpan? b) =>

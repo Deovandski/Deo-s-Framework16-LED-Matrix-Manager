@@ -125,6 +125,12 @@
           <Run Text="Starting with Windows is set in " />
           <Hyperlink Click="StartupSettings_Click">Settings › Apps › Startup</Hyperlink>
         </TextBlock>
+        <CheckBox x:Name="DiagnosticsCheck" Content="Log dump for analysis" Margin="0,8,0,0" Click="Diagnostics_Click"
+                  ToolTip="Adds one line a minute about CPU, memory and LED traffic to a file for each day" />
+        <TextBlock x:Name="DiagnosticsText" Style="{StaticResource Caption}" Margin="26,2,0,0" Visibility="Collapsed">
+          <Run Text="Writing to " />
+          <Hyperlink Click="OpenLogs_Click"><Run x:Name="DiagnosticsFileRun" /></Hyperlink>
+        </TextBlock>
 
         <!-- Footer -->
         <TextBlock Style="{StaticResource Caption}" Margin="0,24,0,0">

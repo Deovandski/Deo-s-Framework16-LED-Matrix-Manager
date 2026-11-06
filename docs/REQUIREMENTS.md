@@ -149,6 +149,12 @@ Specified in [proposals/ANIMATION-TEXT-CRT.md](proposals/ANIMATION-TEXT-CRT.md) 
 |---|---|---|---|
 | FR-80 | A light-hearted, closable banner at the top of the main window on PCs that can't have LED Matrix modules: one message for non-Framework PCs, another for Framework PCs that aren't a Laptop 16. The model comes from the SMBIOS values in `HKLM\HARDWARE\DESCRIPTION\System\BIOS` (no WMI). Nothing is shown on a Laptop 16 or when the model can't be told (blank or placeholder values). Closing it hides it until the app exits. | C | Done |
 
+### 4.9 Diagnostics
+
+| ID | Requirement | Priority | Status |
+|---|---|---|---|
+| FR-90 | "Log dump for analysis" checkbox (off by default, remembered): while on, one CSV line a minute is appended to a file per day in the Logs folder (`stats-yyyy-MM-dd.csv`) with CPU and memory use, GC activity, the animation clock's wake-ups, frames and USB traffic per module, and what was showing. Files older than 14 days are deleted. | C | Done |
+
 ## 5. Non-functional requirements
 
 | ID | Requirement | Pri |

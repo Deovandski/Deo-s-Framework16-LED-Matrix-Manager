@@ -143,6 +143,27 @@ public sealed class MatrixDeviceTests : IDisposable
     }
 
     [Fact]
+    public void Counters_track_commands_frames_and_keep_alives()
+    {
+        var dev = NewDevice();
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+        dev.RunOnce(); // open: version, wake, animate off, brightness, frame
+        var c = dev.Counters;
+        Assert.Equal(1, c.Opens);
+        Assert.Equal(1, c.FramesSent);
+        Assert.Equal(_port.Writes.Count, c.Commands);
+        Assert.Equal(_port.Writes.Sum(w => w.Length), c.Bytes);
+
+        dev.SetFrame(Patterns.Find("Full")!.Create());
+        dev.RunOnce();
+        Assert.Equal(1, dev.Counters.FramesSkipped);
+
+        _time.Advance(MatrixDevice.KeepAliveInterval);
+        dev.RunOnce();
+        Assert.Equal(1, dev.Counters.KeepAlives);
+    }
+
+    [Fact]
     public void The_worker_sleeps_until_needed()
     {
         var dev = NewDevice();

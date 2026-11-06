@@ -70,6 +70,23 @@ What's where:
 - Closing the lid puts the PC to sleep unless an external monitor is attached or *"When I close the lid"* is set to **Do nothing** in Power Options.
 - Turn on the module's **DIP1** switch to see *why* the firmware went to sleep (`SLP#`, `USB`, `CMD`).
 
+### Log dump for analysis
+
+Tick **Log dump for analysis** (sidebar, under Start with Windows) to record one line a minute to `%LocalAppData%\DeoLedMatrixManager\logs\stats-yyyy-MM-dd.csv` (the **Logs** link opens the folder). Each line covers the minute before it:
+
+| Columns | Meaning |
+|---|---|
+| `cpu_ms`, `cpu_pct` | CPU time used, and as a share of all cores |
+| `working_set_mb`, `private_mb`, `managed_heap_mb` | Memory at the end of the minute |
+| `allocated_kb`, `gc0..gc2` | Managed allocations and garbage collections during the minute |
+| `threads`, `handles` | Process totals |
+| `leds_on`, `off_reason`, `window_visible`, `link`, `left_content`, `right_content` | What was going on |
+| `engine_wakeups` | Animation clock wake-ups (0 = idle) |
+| `left_frames`, `right_frames`, `scroll_starts`, `preview_frames` | Pictures handed to each module, firmware scrolls started, preview updates |
+| `left_*` / `right_*` | Per module: status, worker wake-ups, USB commands and bytes, frames sent / skipped as unchanged, keep-alives, port opens |
+
+The file opens in Excel. To let Claude analyse it, copy it into the repo's `artifacts\` folder (ignored by git).
+
 ### Serial transport fallback
 
 The app talks to the modules through the Win32 COM port API (`Win32SerialTransport`). If a module misbehaves and you want to rule that out, start the app with the environment variable `LEDMATRIX_SERIAL=dotnet` to use the System.IO.Ports transport instead:

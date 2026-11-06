@@ -66,6 +66,8 @@ public partial class MainWindow : Window
         }
 
         CrtTransitionsCheck.IsChecked = s.CrtTransitions;
+        DiagnosticsCheck.IsChecked = s.DiagnosticsLog;
+        UpdateDiagnosticsText();
         GapCheck.IsChecked = s.KeyboardGap;
         VersionRun.Text = $"Version {App.VersionText}";
 
@@ -292,6 +294,19 @@ public partial class MainWindow : Window
 
     private void CrtTransitions_Click(object sender, RoutedEventArgs e) =>
         _controller.SetCrtTransitions(CrtTransitionsCheck.IsChecked == true);
+
+    private void Diagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        _controller.SetDiagnosticsLog(DiagnosticsCheck.IsChecked == true);
+        UpdateDiagnosticsText();
+    }
+
+    private void UpdateDiagnosticsText()
+    {
+        var on = _controller.Diagnostics.Enabled;
+        DiagnosticsText.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsFileRun.Text = Path.GetFileName(DiagnosticsLog.TodayFile);
+    }
 
     private void Brush_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {

@@ -61,6 +61,9 @@ internal sealed class AppController : IDisposable
         ApplyPower();
         ConfigureEngine();
         Devices.Rescan();
+
+        Diagnostics = new DiagnosticsLog(this, dispatcher);
+        Diagnostics.SetEnabled(Settings.DiagnosticsLog);
     }
 
     public AppSettings Settings { get; }
@@ -70,6 +73,8 @@ internal sealed class AppController : IDisposable
     public AnimationEngine Engine { get; }
 
     public ScreenStateMonitor Screen { get; }
+
+    public DiagnosticsLog Diagnostics { get; }
 
     public LedOffReason OffReason { get; private set; } = LedOffReason.None;
 
@@ -162,6 +167,13 @@ internal sealed class AppController : IDisposable
     {
         Settings.CrtTransitions = on;
         ConfigureEngine();
+        SaveSoon();
+    }
+
+    public void SetDiagnosticsLog(bool on)
+    {
+        Settings.DiagnosticsLog = on;
+        Diagnostics.SetEnabled(on);
         SaveSoon();
     }
 
@@ -274,6 +286,7 @@ internal sealed class AppController : IDisposable
     public void Dispose()
     {
         _rescanTimer.Stop();
+        Diagnostics.Dispose();
         SaveNow();
         Engine.Dispose();
         Screen.Dispose();

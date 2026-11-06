@@ -321,6 +321,20 @@ public sealed class EngineTests : IDisposable
     }
 
     [Fact]
+    public void Counters_track_frames_scrolls_and_previews()
+    {
+        _engine.PreviewEnabled = true;
+        _engine.Configure(Config(left: Anim("plasma"), right: Anim("checker")));
+        Advance(0.2);
+        var c = _engine.Counters;
+        Assert.Equal(_sink.Shown.Count(s => s.Side == MatrixSide.Left), c.LeftFramesSent);
+        Assert.Equal(_sink.Shown.Count(s => s.Side == MatrixSide.Right), c.RightFramesSent);
+        Assert.Equal(1, c.ScrollStarts);
+        Assert.True(c.PreviewFrames > 0);
+        Assert.Equal(0, c.TimerTicks); // only real timer callbacks count as wake-ups
+    }
+
+    [Fact]
     public void Scroll_period_follows_speed()
     {
         Assert.Equal((ushort)125, AnimationEngine.ScrollPeriod(8));

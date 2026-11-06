@@ -9,6 +9,10 @@ public enum DeviceStatus
     Disconnected,
 }
 
+/// <summary>Running totals for one module since it was opened by the app (for the diagnostics log).</summary>
+public readonly record struct DeviceCounters(
+    long WorkerWakeups, long Commands, long Bytes, long FramesSent, long FramesSkipped, long KeepAlives, long Opens);
+
 /// <summary>
 /// One physical LED Matrix module. All serial I/O happens on a dedicated background thread;
 /// UI code only sets the desired state (frame, brightness, awake) and the worker syncs it to
@@ -53,6 +57,15 @@ public sealed class MatrixDevice : IDisposable
     private TimeSpan _reconnectDelay = TimeSpan.FromMilliseconds(500);
     private DeviceStatus _status = DeviceStatus.Connecting;
 
+    // Counters (written by the worker, read by the diagnostics log)
+    private long _workerWakeups;
+    private long _commands;
+    private long _bytes;
+    private long _framesSent;
+    private long _framesSkipped;
+    private long _keepAlives;
+    private long _opens;
+
     public MatrixDevice(string serialNumber, ISerialTransport transport, TimeProvider? time = null)
     {
         SerialNumber = serialNumber;
@@ -67,6 +80,12 @@ public sealed class MatrixDevice : IDisposable
     public FirmwareVersion? Version { get; private set; }
 
     public DeviceStatus Status => _status;
+
+    /// <summary>Running totals: worker wake-ups, USB commands and bytes, frames sent/skipped, keep-alives, port opens.</summary>
+    public DeviceCounters Counters => new(
+        Interlocked.Read(ref _workerWakeups), Interlocked.Read(ref _commands), Interlocked.Read(ref _bytes),
+        Interlocked.Read(ref _framesSent), Interlocked.Read(ref _framesSkipped), Interlocked.Read(ref _keepAlives),
+        Interlocked.Read(ref _opens));
 
     /// <summary>Raised on the worker thread whenever <see cref="Status"/> or <see cref="Version"/> changes.</summary>
     public event EventHandler? StatusChanged;
@@ -212,6 +231,7 @@ public sealed class MatrixDevice : IDisposable
     {
         while (!_stopping)
         {
+            Interlocked.Increment(ref _workerWakeups);
             RunOnce();
             if (_stopping)
             {
@@ -304,6 +324,7 @@ public sealed class MatrixDevice : IDisposable
         }
 
         _reconnectDelay = TimeSpan.FromMilliseconds(500);
+        Interlocked.Increment(ref _opens);
         Log.Info($"{PortName}: opened (serial {SerialNumber})");
 
         // The module may have been asleep (idle timeout) or showing old content: resend everything.
@@ -464,11 +485,13 @@ public sealed class MatrixDevice : IDisposable
         if (frameDirty && !scrollDirty && scroll is null && frame.Equals(_lastSentFrame))
         {
             frameDirty = false;
+            Interlocked.Increment(ref _framesSkipped);
         }
 
         if (frameDirty)
         {
             SendFrame(frame);
+            Interlocked.Increment(ref _framesSent);
             _lastSentFrame = frame;
         }
 
@@ -485,6 +508,7 @@ public sealed class MatrixDevice : IDisposable
         {
             // Harmless command that resets the firmware idle timer without changing the image.
             Write(Protocol.SetBrightness(brightness));
+            Interlocked.Increment(ref _keepAlives);
         }
     }
 
@@ -524,6 +548,8 @@ public sealed class MatrixDevice : IDisposable
     {
         _transport.Write(command);
         _lastWrite = _time.GetUtcNow();
+        Interlocked.Increment(ref _commands);
+        Interlocked.Add(ref _bytes, command.Length);
     }
 
     private void ScheduleReconnect()
