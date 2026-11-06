@@ -1,4 +1,5 @@
-"""Draws the MSIX logo images (packaging/Assets) at every size Windows asks for.
+"""Draws the MSIX logo images (packaging/Assets) at every size Windows asks for, plus the
+300x300 app tile icon for the Store listing (packaging/StoreListing).
 
 Same design as the app icon: a dark rounded square with two 3x6 grids of white dots.
 Run: python tools/make_store_assets.py   (needs Pillow)
@@ -53,6 +54,13 @@ def main() -> None:
     for size in (16, 24, 32, 48, 256):
         save(icon(size), f"Square44x44Logo.targetsize-{size}_altform-unplated.png")
         save(icon(size), f"Square44x44Logo.targetsize-{size}.png")
+
+    # Store listing image (uploaded in Partner Center, not part of the package).
+    listing = OUT.parent / "StoreListing"
+    listing.mkdir(parents=True, exist_ok=True)
+    tile = icon(300)
+    tile.save(listing / "AppTileIcon-300x300.png")
+    print("StoreListing/AppTileIcon-300x300.png", tile.size)
 
 
 if __name__ == "__main__":
