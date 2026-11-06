@@ -146,6 +146,12 @@
 
     /* ---------- Sections ---------- */
     section { padding: 72px 0 8px; }
+    .demo { margin: 0; max-width: 62rem; }
+    .demo video {
+      display: block; width: 100%; height: auto; aspect-ratio: 16 / 9;
+      border-radius: 12px; background: #000;
+    }
+    .demo figcaption { margin-top: 10px; color: var(--text-soft); font-size: 15px; }
     h2 { font-size: 30px; line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 22px; font-weight: 800; }
     h3 { font-size: 19px; margin: 0 0 6px; font-weight: 700; }
     .lede { max-width: 40rem; color: var(--text-soft); margin: -8px 0 30px; }
@@ -239,6 +245,16 @@
           <div class="matrix" id="right" role="img" aria-label="Right LED matrix demo. Click or drag to draw."></div>
         </div>
       </div>
+
+      <section id="in-action">
+        <h2>On a real Laptop 16</h2>
+        <figure class="demo">
+          <video src="media/wds-demo.mp4" poster="media/wds-demo-poster.jpg" width="1280" height="720"
+                 autoplay muted loop playsinline preload="metadata" controls
+                 aria-label="Video: chevrons flowing on the left LED module and text sliding on the right one, with the app open on the laptop screen"></video>
+          <figcaption>Chevrons on the left module, sliding text on the right, set up in the app on screen.</figcaption>
+        </figure>
+      </section>
 
       <section id="features">
         <h2>What it does</h2>
@@ -428,6 +444,16 @@
         document.getElementById("deck").classList.toggle("lid-closed", lid.checked);
         label.textContent = lid.checked ? "Lid closed, so the LEDs are off" : "Close the lid";
       });
+    })();
+  </script>
+  <script>
+    // "Reduce motion" set in the OS: the demo video doesn't autoplay; it waits for play.
+    (function () {
+      var v = document.querySelector("#in-action video");
+      if (v && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        v.removeAttribute("autoplay");
+        v.pause();
+      }
     })();
   </script>
 </body>

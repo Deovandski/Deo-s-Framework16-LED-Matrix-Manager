@@ -3,6 +3,10 @@
 A lightweight Windows tray app for the Framework Laptop 16 **LED Matrix** input modules. Draw, animate, write text, and let the LEDs turn themselves off when you dock and close the lid.
 
 <p align="center">
+  <a href="docs/media/WDS_FrameworkLaptop.jpg"><img src="docs/media/WDS_FrameworkLaptop-1600.jpg" alt="A Framework Laptop 16 with LED Matrix modules on both sides of the keyboard: chevrons flowing on the left, text sliding on the right, and the app open on screen" width="760"></a>
+</p>
+
+<p align="center">
   <img src="docs/media/span-ticker.gif" alt="Text scrolling across both LED modules, passing behind the keyboard" height="300">
   &nbsp;&nbsp;
   <img src="docs/media/span-ball.gif" alt="A ball bouncing across both LED modules" height="300">
