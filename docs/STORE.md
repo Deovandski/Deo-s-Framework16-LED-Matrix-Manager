@@ -1,5 +1,7 @@
 # Microsoft Store
 
+**Live:** [apps.microsoft.com/detail/9PF263W0KCSF](https://apps.microsoft.com/detail/9PF263W0KCSF) (Store ID `9PF263W0KCSF`; on Windows, `ms-windows-store://pdp/?ProductId=9PF263W0KCSF` opens the Store app directly).
+
 The Store copy is an MSIX package of the same app. The Store signs it, installs it and updates it,
 so it works with Smart App Control on and without SmartScreen warnings.
 

@@ -122,6 +122,8 @@
       text-decoration: none;
     }
     .btn:hover { background: #ffffff; }
+    .btn.ghost { background: transparent; color: #f3f4f5; box-shadow: inset 0 0 0 1px #5c6068; }
+    .btn.ghost:hover { background: rgba(255,255,255,.08); }
     .fine { font-size: 14px; color: #a9aeb5; }
 
     .lid {
@@ -233,7 +235,8 @@
           <h1>Your Framework 16 LED matrices, managed from the tray.</h1>
           <p>Draw on both modules, pick a pattern, set the brightness, and forget about it. When you dock and close the lid, the LEDs fade out. Open it again and they come back.</p>
           <div class="actions">
-            <a class="btn" href="https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/releases/latest">Download for Windows</a>
+            <a class="btn" href="https://apps.microsoft.com/detail/9PF263W0KCSF?mode=direct">Get it from Microsoft Store</a>
+            <a class="btn ghost" href="https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/releases/latest">Download the installer</a>
             <span class="fine">Free and open source. Windows 10 and 11.</span>
           </div>
           <label class="lid">
@@ -316,6 +319,7 @@
 
       <section id="install">
         <h2>Install</h2>
+        <p class="lede"><strong>Easiest:</strong> get it from the <a href="https://apps.microsoft.com/detail/9PF263W0KCSF?mode=direct">Microsoft Store</a>. Microsoft signs it, it updates itself, and it works with Smart App Control on. Or use the installer from GitHub:</p>
         <ol class="steps">
           <li>Download the installer from the <a href="https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/releases/latest">latest release</a>.</li>
           <li>Run it. No admin rights are needed. It installs just for you.<br>

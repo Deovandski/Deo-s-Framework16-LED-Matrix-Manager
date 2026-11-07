@@ -12,7 +12,7 @@ A lightweight Windows tray app for the Framework Laptop 16 **LED Matrix** input 
   <img src="docs/media/span-ball.gif" alt="A ball bouncing across both LED modules" height="300">
 </p>
 
-**Website:** https://deovandski.github.io/Deo-s-Framework16-LED-Matrix-Manager/ · **Download:** [latest release](https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/releases/latest)
+**Website:** https://deovandski.github.io/Deo-s-Framework16-LED-Matrix-Manager/ · **Get it:** [Microsoft Store](https://apps.microsoft.com/detail/9PF263W0KCSF?mode=direct) or the [latest release](https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/releases/latest)
 
 ## What it does
 
@@ -35,6 +35,12 @@ Rendered by the app's own animation engine (`tools/FrameDump`), so this is exact
 Also included: marching stripes, checker march, chevrons, diamonds, sine wave, equalizer, snowfall, breathing, bouncing ball, Game of Life and No signal. All the patterns from the official web tool are there too, plus a pixel editor with greyscale brushes.
 
 ## Install
+
+**Microsoft Store (easiest).** Signed by Microsoft, updates itself, and works with Smart App Control on.
+
+<a href="https://apps.microsoft.com/detail/9PF263W0KCSF?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width="200"></a>
+
+**Installer from GitHub:**
 
 1. Download `DeoLedMatrixManager-Setup-x.y.z.exe` from the [latest release](https://github.com/Deovandski/Deo-s-Framework16-LED-Matrix-Manager/releases/latest).
 2. Run it. It installs just for you and needs no admin rights. The installer isn't code-signed yet, so Windows SmartScreen may warn you: choose **More info**, then **Run anyway**.
